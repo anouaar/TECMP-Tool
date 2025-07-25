@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protocol Stack Visualization</title>
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --bg-color: #ecf0f1;
+      --text-color: #333;
+      --hover-opacity: 0.9;
+      --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+      color: var(--primary-color);
+    }
+
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .protocol-stack {
+      width: 100%;
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 10px;
+    }
+
+    .layer {
+      padding: 15px 20px;
+      border-radius: 8px;
+      position: relative;
+      color: white;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow);
+      transition: var(--transition);
+      cursor: pointer;
+    }
+
+    .layer:hover {
+      opacity: var(--hover-opacity);
+      transform: translateY(-2px);
+    }
+
+    .layer-name {
+      font-size: 1.1rem;
+    }
+
+    .layer-details {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    .layer-content {
+      max-height: 0;
+      overflow: hidden;
+      background-color: rgba(255, 255, 255, 0.9);
+      border-radius: 0 0 8px 8px;
+      margin-top: -5px;
+      padding: 0 15px;
+      color: var(--text-color);
+      transition: var(--transition);
+      box-shadow: var(--shadow);
+    }
+
+    .layer.active + .layer-content {
+      max-height: 200px;
+      padding: 15px;
+      margin-bottom: 10px;
+    }
+
+    .layer.active {
+      border-radius: 8px 8px 0 0;
+    }
+
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.9rem;
+    }
+
+    .color-box {
+      width: 15px;
+      height: 15px;
+      border-radius: 3px;
+    }
+
+    /* Color scheme for different protocol types */
+    .ethernet { background-color: #3498db; }
+    .tecmp { background-color: #9b59b6; }
+    .ip { background-color: #2ecc71; }
+    .transport { background-color: #e74c3c; }
+    .application { background-color: #f39c12; }
+    .other { background-color: #95a5a6; }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      .protocol-stack {
+        width: 100%;
+      }
+      
+      .layer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .layer-details {
+        margin-top: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Protocol Stack Visualization</h1>
+    <p>Click on a protocol layer to view details</p>
+  </header>
+
+  <div class="container">
+    <div class="protocol-stack" id="stack">
+      <!-- Protocol layers will be inserted here dynamically -->
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="color-box ethernet"></div>
+        <span>Link Layer</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box tecmp"></div>
+        <span>TECMP</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box ip"></div>
+        <span>Network Layer</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box transport"></div>
+        <span>Transport Layer</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box application"></div>
+        <span>Application Layer</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Example data structure - replace with your actual protocol stack data
+    const protocolData = [
+      { 
+        name: 'Ethernet', 
+        type: 'ethernet', 
+        details: 'Link Layer Protocol',
+        fields: [
+          { name: 'Source MAC', value: '00:1A:2B:3C:4D:5E' },
+          { name: 'Destination MAC', value: 'FF:FF:FF:FF:FF:FF' },
+          { name: 'EtherType', value: '0x8100' }
+        ]
+      },
+      { 
+        name: 'TECMP', 
+        type: 'tecmp', 
+        details: 'TECMP v3, Counter: 324, Device ID: 0x0080',
+        fields: [
+          { name: 'Version', value: '3' },
+          { name: 'Message Type', value: '0x03 (Logging Stream)' },
+          { name: 'Data Type', value: '0x0080 (Ethernet)' },
+          { name: 'Device Flags', value: '0x000F (EOS+SOS+SPY+MF)' }
+        ]
+      },
+      { 
+        name: 'IPv4', 
+        type: 'ip', 
+        details: 'Source: 192.168.1.10, Dest: 192.168.1.255',
+        fields: [
+          { name: 'Version', value: '4' },
+          { name: 'Header Length', value: '20 bytes' },
+          { name: 'TTL', value: '64' },
+          { name: 'Protocol', value: '17 (UDP)' }
+        ]
+      },
+      { 
+        name: 'UDP', 
+        type: 'transport', 
+        details: 'SrcPort: 5678, DstPort: 5679, Length: 20',
+        fields: [
+          { name: 'Source Port', value: '5678' },
+          { name: 'Destination Port', value: '5679' },
+          { name: 'Length', value: '20 bytes' },
+          { name: 'Checksum', value: '0x1A2B' }
+        ]
+      }
+    ];
+
+    const stackContainer = document.getElementById('stack');
+
+    // Create and append protocol layers
+    protocolData.forEach((protocol, index) => {
+      // Create the layer element
+      const layer = document.createElement('div');
+      layer.className = `layer ${protocol.type}`;
+      layer.innerHTML = `
+        <span class="layer-name">${protocol.name}</span>
+        <span class="layer-details">${protocol.details}</span>
+      `;
+      
+      // Create the expandable content
+      const content = document.createElement('div');
+      content.className = 'layer-content';
+      
+      // Add field information
+      let fieldsHTML = '<dl>';
+      protocol.fields.forEach(field => {
+        fieldsHTML += `<dt>${field.name}:</dt><dd>${field.value}</dd>`;
+      });
+      fieldsHTML += '</dl>';
+      content.innerHTML = fieldsHTML;
+      
+      // Add event listener for expanding/collapsing
+      layer.addEventListener('click', () => {
+        // Toggle the active class
+        layer.classList.toggle('active');
+      });
+      
+      // Append to the container
+      stackContainer.appendChild(layer);
+      stackContainer.appendChild(content);
+    });
+  </script>
+</body>
+</html>

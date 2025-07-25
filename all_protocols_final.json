@@ -1,0 +1,61 @@
+{
+  "TCP": {
+    "src_port": 49152,
+    "dst_port": 80,
+    "seq_number": 0,
+    "ack_number": 0,
+    "data_offset": 5,
+    "reserved": 0,
+    "window_size": 8192,
+    "checksum": 0,
+    "urgent_pointer": 0,
+    "mss": 1460,
+    "sack_permitted": false,
+    "timestamp_enabled": false,
+    "raw_options": "",
+    "payload": "",
+    "flags": 2
+  },
+  "UDP": {
+    "src_port": 49152,
+    "dst_port": 53,
+    "length": 8,
+    "checksum": 0
+  },
+  "Ethernet": {
+    "preamble": "AAAAAAAAAAAAAAAA",
+    "sfd": "AB",
+    "dst_mac": "02:00:00:00:00:02",
+    "src_mac": "02:00:00:00:00:01",
+    "ether_type": 2048,
+    "fcs": "0",
+    "payload": ""
+  },
+  "IPv4": {
+    "src_ip": "10.0.0.1",
+    "dst_ip": "10.0.0.2",
+    "protocol": 6
+  },
+  "IPv6": {
+    "src_ip": "2001:db8::1",
+    "dst_ip": "2001:db8::2",
+    "protocol": 6
+  },
+  "VLAN": {
+    "vlan_id": 100,
+    "priority": 0,
+    "cfi": 0,
+    "ether_type": 2048
+  },
+  "ARP": {
+    "hw_type": 1,
+    "proto_type": 2048,
+    "hw_len": 6,
+    "proto_len": 4,
+    "operation": 1,
+    "sender_mac": "02:00:00:00:00:01",
+    "sender_ip": "10.0.0.1",
+    "target_mac": "00:00:00:00:00:00",
+    "target_ip": "10.0.0.2"
+  }
+}

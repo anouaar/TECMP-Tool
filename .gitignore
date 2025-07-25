@@ -1,0 +1,176 @@
+# Environnements virtuels Python
+.venv/
+venv/
+env/
+ENV/
+virtualenv/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Fichiers de test
+test_*.py
+*_test.py
+*_tests.py
+test*.json
+test*.pcap
+test*.bin
+
+# Fichiers temporaires et de correction
+fix_*.py
+temp_*.py
+*_fixed.py
+*_temp.py
+patch_*.py
+diagnostic_*.py
+diagnose_*.py
+
+# Fichiers binaires
+*.bin
+*.pcap
+
+# Fichiers de log et rapports
+*.log
+diagnostic_report.txt
+exception_audit.txt
+silent_exceptions.txt
+*_report_*.txt
+*_analysis_*.txt
+*_coverage_*.txt
+*_migration_*.txt
+
+# Fichiers JSON temporaires (gardez ceux dont vous avez besoin avec git add -f)
+auto_save.json
+test.json
+tecmp_report.json
+all_protocols_test.json
+
+# Fichiers de session et configuration temporaire
+*.ses
+*.se2
+photorec.*
+tecmp_cfg
+
+# Fichiers SVG générés
+*.svg
+
+# Scripts shell (sauf si vous voulez les versionner)
+*.sh
+
+# Fichiers patch
+*.patch
+
+# IDE et éditeurs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Tests unitaires
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environnements
+.env
+.env.local
+.env.*.local
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Fichiers avec noms étranges (probablement des erreurs)
+counter:
+data_flags:
+data_type:
+device_flags:
+device_id:
+dst_mac:
+src_mac:
+dst_mac=*
+src_mac=*
+dst=*
+src=*
+dst_port=*
+src_port=*
+else:
+except
+if
+try:
+=
+:
+
+# Fichiers spécifiques à ignorer
+i.json
+aa.json
+ee.json
+AZE.json
+preview_*.txt
+interactive*.pcap
+metrics_*.pcap
+export.pcap
+export_*.py
+*_wrapper.py
+*_cli.py
+*_engine.py
+*_facade.py
+*_gui.py
+*_widget*.py
+
+# Gardez les fichiers essentiels en les ajoutant explicitement avec git add
