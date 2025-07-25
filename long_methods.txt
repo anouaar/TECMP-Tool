@@ -1,0 +1,5 @@
+core/interfaces/cli/commands/protocol_commands.py:create_protocol
+core/interfaces/cli/commands/protocol_commands.py:add_protocol
+core/interfaces/cli/commands/protocol_commands.py:build_protocol_config
+core/interfaces/cli/cli_parser.py:add_protocol_arguments
+core/interfaces/cli/cli_parser.py:add_tecmp_arguments

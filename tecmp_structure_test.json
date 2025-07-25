@@ -1,0 +1,75 @@
+[
+  {
+    "name": "Frame",
+    "config": {}
+  },
+  {
+    "name": "Ethernet (External)",
+    "config": {
+      "src_mac": "38:2a:19:80:24:66",
+      "dst_mac": "01:00:5e:00:00:00",
+      "ether_type": 39422
+    }
+  },
+  {
+    "name": "TECMP (encapsulating: Ethernet, VLAN, IPv4, UDP)",
+    "config": {
+      "device_id": 128,
+      "counter": 324,
+      "version": 3,
+      "message_type": 3,
+      "data_type": 128,
+      "dev_flags": 15,
+      "interface_id": 7344778,
+      "timestamp": 305419896,
+      "data_flags": 0,
+      "outer_src_mac": "38:2a:19:80:24:66",
+      "outer_dst_mac": "01:00:5e:00:00:00",
+      "encapsulated": [
+        {
+          "name": "Ethernet",
+          "config": {
+            "dst_mac": "c0:a8:03:03:00:03",
+            "src_mac": "c0:a8:03:02:00:02",
+            "ether_type": 33024
+          }
+        },
+        {
+          "name": "VLAN",
+          "config": {
+            "priority": 0,
+            "dei": 0,
+            "id": 16,
+            "ether_type": 2048
+          }
+        },
+        {
+          "name": "IPv4",
+          "config": {
+            "version": 4,
+            "hdr_len": 20,
+            "dsfield": 0,
+            "len": 28,
+            "id": 4660,
+            "flags": 2,
+            "frag_offset": 0,
+            "ttl": 255,
+            "proto": 17,
+            "checksum": 57930,
+            "src": "192.168.3.2",
+            "dst": "192.168.3.3"
+          }
+        },
+        {
+          "name": "UDP",
+          "config": {
+            "srcport": 1,
+            "dstport": 2,
+            "length": 8,
+            "checksum": 30857
+          }
+        }
+      ]
+    }
+  }
+]
