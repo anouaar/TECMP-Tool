@@ -118,7 +118,7 @@ class TECMPPacket:
                  counter: int = 0,
                  version: int = TECMP_VERSION,
                  message_type: int = MessageType.LOGGING_STREAM,
-                 data_type: int = DataType.ETHERNET_EXT,
+                 data_type: int = DataType.ETHERNET_II,  # ALIGNED: Use official name
                  reserved: int = 0x0000,
                  device_flags: Optional[int] = None,
                  interface_id: int = 0x00000000,
@@ -803,7 +803,7 @@ class TECMPPacket:
 # ============================================================================
 
 def create_logging_packet(device_id: int = 0x0040, 
-                         data_type: int = DataType.ETHERNET_EXT,
+                         data_type: int = DataType.ETHERNET_II,  # ALIGNED: Use official name
                          interface_id: int = 0x00000000,
                          payload: bytes = b"",
                          device_overflow: bool = False,
@@ -862,7 +862,7 @@ def create_replay_packet(data_type: int,
         Configured TECMPPacket for replay
     """
     # CORRECTED: Validate that Ethernet replay is not supported by TECMP v1.7
-    if data_type in [DataType.ETHERNET, DataType.ETHERNET_EXT]:
+    if data_type == DataType.ETHERNET_II:  # ALIGNED: Use official name
         raise TECMPValidationError(
             "Ethernet replay not supported by TECMP v1.7 specification (Section 2.4.4)")
     

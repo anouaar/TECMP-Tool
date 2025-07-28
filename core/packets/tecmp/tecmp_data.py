@@ -282,7 +282,7 @@ class EthernetHandler(ProtocolHandler):
     """Handler for Ethernet protocol"""
     
     def __init__(self):
-        super().__init__(DataType.ETHERNET_EXT)
+        super().__init__(DataType.ETHERNET_II)
     
     def build_payload(self, dst_mac: bytes, src_mac: bytes,
                      ether_type: int, data: bytes,
@@ -712,7 +712,7 @@ class UARTHandler(ProtocolHandler):
     """Handler for UART/RS232 protocol"""
     
     def __init__(self):
-        super().__init__(DataType.UART)
+        super().__init__(DataType.UART_RS232)
     
     def build_payload(self, data: bytes) -> bytes:
         """
@@ -935,10 +935,10 @@ class TECMPDataBuilder:
             DataType.CAN_FD: CANHandler(is_fd=True),
             DataType.LIN: LINHandler(),
             DataType.FLEXRAY: FlexRayHandler(),
-            DataType.UART: UARTHandler(),
+            DataType.UART_RS232: UARTHandler(),
             DataType.ANALOG: AnalogHandler(),
-            DataType.ETHERNET: EthernetHandler(),
-            DataType.ETHERNET_EXT: EthernetHandler(),
+            DataType.ETHERNET_II: EthernetHandler(),
+            DataType.ETHERNET_II: EthernetHandler(),
         }
         self.logger = logging.getLogger(self.__class__.__name__)
     
@@ -955,7 +955,7 @@ class TECMPDataBuilder:
         """
         # CORRECTED: Check if this is for replay and block Ethernet
         if 'for_replay' in kwargs and kwargs['for_replay']:
-            if data_type in [DataType.ETHERNET, DataType.ETHERNET_EXT]:
+            if data_type in [DataType.ETHERNET_II, DataType.ETHERNET_II]:
                 raise TECMPDataError(
                     "Ethernet replay not supported by TECMP v1.7 specification (Section 2.4.4)")
         
@@ -1027,7 +1027,7 @@ def build_canfd_payload(can_id: int, data: bytes, **kwargs) -> Tuple[bytes, int]
 def build_ethernet_payload(dst_mac: bytes, src_mac: bytes, 
                          ether_type: int, data: bytes, **kwargs) -> Tuple[bytes, int]:
     """Build Ethernet payload and flags"""
-    return _get_global_builder().build_payload(DataType.ETHERNET_EXT,
+    return _get_global_builder().build_payload(DataType.ETHERNET_II,
                                  dst_mac=dst_mac, src_mac=src_mac,
                                  ether_type=ether_type, data=data, **kwargs)
 
@@ -1049,7 +1049,7 @@ def build_flexray_payload(cycle: int, frame_id: int, data: bytes, **kwargs) -> T
 
 def build_uart_payload(data: bytes, data_length: int = 8, **kwargs) -> Tuple[bytes, int]:
     """Build UART payload and flags"""
-    return _get_global_builder().build_payload(DataType.UART, data=data, 
+    return _get_global_builder().build_payload(DataType.UART_RS232, data=data, 
                                  data_length=data_length, **kwargs)
 
 def build_analog_payload(samples: List[int], **kwargs) -> Tuple[bytes, int]:

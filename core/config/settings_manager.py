@@ -10,6 +10,7 @@ application, handling user preferences, application configuration, and persisten
 import logging
 import os
 import json
+import time  # Import moved to top
 from typing import Any, Dict, Optional, List, Union
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
@@ -136,6 +137,19 @@ class SettingsManager(QObject):
                 'temp_directory': None
             }
         ),
+        # AJOUT DU GROUPE 'protocol' (sans 's')
+        'protocol': SettingsGroup(
+            name='protocol',
+            description='Protocol-specific settings (singular)',
+            scope=SettingsScope.USER,
+            defaults={
+                'strict_validation': False,
+                'auto_detect': True,
+                'default_protocol': 'Ethernet',
+                'protocol_timeout': 30,
+                'max_retries': 3
+            }
+        ),
         'protocols': SettingsGroup(
             name='protocols',
             description='Protocol-specific settings',
@@ -172,6 +186,18 @@ class SettingsManager(QObject):
                 'anonymize_data': False,
                 'audit_logging': True,
                 'secure_temp_files': True
+            }
+        ),
+        # AJOUT DU GROUPE 'ui' pour la facade
+        'ui': SettingsGroup(
+            name='ui',
+            description='UI settings for facade',
+            scope=SettingsScope.USER,
+            defaults={
+                'hex_view_enabled': False,
+                'preview_panel_visible': True,
+                'details_panel_visible': True,
+                'dark_mode_enabled': False
             }
         )
     }
@@ -686,10 +712,6 @@ class SettingsManager(QObject):
             True if there are unsaved changes
         """
         return self._is_dirty
-
-
-# Import time module that was referenced but not imported
-import time
 
 
 # Global settings instance (singleton pattern)

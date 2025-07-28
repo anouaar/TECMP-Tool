@@ -1,124 +1,663 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Base packet class
+"""
+
+from typing import Any, Optional, Dict, Union, List, Tuple, Type, Callable
+from abc import ABC, abstractmethod
+import struct
+import logging
+import time
+import hashlib
+# from core.packets.transport.udp import UDPPacket  # LIGNE 14 COMMENTÉE - Import circulaire
+# # from core.packets.transport.tcp import TCPPacket  # LIGNE 15 COMMENTÉE - Import circulaire
+# 
+# Vos autres imports originaux
+# # from core.packets.base.base_types import PacketType, ProtocolType  # LIGNE 17 COMMENTÉE - Fichier n'existe pas
+# # from core.packets.base.interfaces import IPacket, ISerializable   # LIGNE 18 COMMENTÉE - Fichier n'existe pas
+
+
+class Packet(ABC):  # LIGNE 21 MODIFIÉE - Retiré IPacket, ISerializable
+    """Base class for all network packets"""
+    
+    def __init__(self, payload: bytes = b'', **kwargs):
+        self.payload = payload
+        self.metadata = kwargs
+        self.logger = logging.getLogger(f"{self.__class__.__module__}.{self.__class__.__name__}")
+        self.timestamp = time.time()
+        self._cached_hash = None
+        self._parent_packet = None
+        self._child_packets = []
+        
+    @abstractmethod
+    def serialize(self) -> bytes:
+        """Serialize packet to bytes"""
+        pass
+    
+    @abstractmethod
+    def deserialize(self, data: bytes) -> None:
+        """Deserialize packet from bytes"""
+        pass
+    
+    @abstractmethod
+    def get_type(self) -> str:  # LIGNE 44 MODIFIÉE - PacketType remplacé par str
+        """Get packet type"""
+        pass
+    
+    def get_payload(self) -> bytes:
+        """Get packet payload"""
+        return self.payload
+    
+    def set_payload(self, payload: bytes) -> None:
+        """Set packet payload"""
+        self.payload = payload
+        self._cached_hash = None  # Invalidate hash cache
+    
+    def get_metadata(self) -> Dict[str, Any]:
+        """Get packet metadata"""
+        return self.metadata
+    
+    def set_metadata(self, key: str, value: Any) -> None:
+        """Set metadata value"""
+        self.metadata[key] = value
+    
+    def get_timestamp(self) -> float:
+        """Get packet timestamp"""
+        return self.timestamp
+    
+    def __len__(self) -> int:
+        """Get packet length"""
+        return len(self.serialize())
+    
+    def __repr__(self) -> str:
+        """String representation"""
+        return f"{self.__class__.__name__}(payload_len={len(self.payload)}, timestamp={self.timestamp})"
+    
+    def __str__(self) -> str:
+        """Human-readable string"""
+        return f"{self.get_type()} Packet: {len(self)} bytes"  # Changé: .name retiré car get_type() retourne str
+    
+    def __hash__(self) -> int:
+        """Get packet hash"""
+        if self._cached_hash is None:
+            self._cached_hash = hash(self.serialize())
+        return self._cached_hash
+    
+    def __eq__(self, other: object) -> bool:
+        """Compare packets"""
+        if not isinstance(other, Packet):
+            return False
+        return self.serialize() == other.serialize()
+    
+    def encapsulate(self, inner_packet: 'Packet') -> None:
+        """Encapsulate another packet"""
+        self.payload = inner_packet.serialize()
+        inner_packet._parent_packet = self
+        self._child_packets.append(inner_packet)
+    
+    def decapsulate(self, packet_class: type) -> Optional['Packet']:
+        """Decapsulate inner packet"""
+        if not self.payload:
+            return None
+        
+        inner_packet = packet_class()
+        try:
+            inner_packet.deserialize(self.payload)
+            inner_packet._parent_packet = self
+            self._child_packets.append(inner_packet)
+            return inner_packet
+        except Exception as e:
+            self.logger.error(f"Failed to decapsulate: {e}")
+            return None
+    
+    def get_parent(self) -> Optional['Packet']:
+        """Get parent packet"""
+        return self._parent_packet
+    
+    def get_children(self) -> List['Packet']:
+        """Get child packets"""
+        return self._child_packets.copy()
+    
+    def walk_hierarchy(self) -> List['Packet']:
+        """Walk packet hierarchy from root to leaf"""
+        hierarchy = []
+        current = self
+        
+        # Walk up to root
+        while current._parent_packet:
+            current = current._parent_packet
+        
+        # Walk down collecting packets
+        def collect(packet):
+            hierarchy.append(packet)
+            for child in packet._child_packets:
+                collect(child)
+        
+        collect(current)
+        return hierarchy
+    
+    def calculate_hash(self) -> str:
+        """Calculate SHA256 hash of packet"""
+        return hashlib.sha256(self.serialize()).hexdigest()
+    
+    def validate(self) -> bool:
+        """Validate packet integrity"""
+        try:
+            # Basic validation - can be overridden
+            return len(self.serialize()) > 0
+        except Exception:
+            return False
+    
+    def clone(self) -> 'Packet':
+        """Create a deep copy of the packet"""
+        cloned = self.__class__()
+        cloned.deserialize(self.serialize())
+        cloned.metadata = self.metadata.copy()
+        cloned.timestamp = self.timestamp
+        return cloned
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert packet to dictionary"""
+        return {
+            'type': self.get_type(),  # Changé: .name retiré car get_type() retourne str
+            'length': len(self),
+            'timestamp': self.timestamp,
+            'payload_length': len(self.payload),
+            'metadata': self.metadata,
+            'hash': self.calculate_hash()
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Packet':
+        """Create packet from dictionary"""
+        # Base implementation - should be overridden
+        raise NotImplementedError("Subclasses must implement from_dict")
+    
+    def apply_filter(self, filter_func: Callable[['Packet'], bool]) -> bool:
+        """Apply filter function to packet"""
+        return filter_func(self)
+    
+    def transform(self, transform_func: Callable[['Packet'], 'Packet']) -> 'Packet':
+        """Transform packet using function"""
+        return transform_func(self)
+
+    # Méthode qui utilise UDPPacket/TCPPacket - avec import local
+    def create_transport_packet(self, packet_type: str, **kwargs) -> 'Packet':
+        """Create transport layer packet with lazy import"""
+        if packet_type.lower() == 'udp':
+            from core.packets.transport.udp import UDPPacket  # Import local
+            return UDPPacket(**kwargs)
+        elif packet_type.lower() == 'tcp':
+            from core.packets.transport.tcp import TCPPacket  # Import local
+            return TCPPacket(**kwargs)
+        else:
+            raise ValueError(f"Unknown transport type: {packet_type}")
+
+    @classmethod
+    def create_from_type(cls, packet_type: str, **kwargs) -> 'Packet':
+        """Factory method to create packet from type string"""
+        # Imports locaux pour éviter la circularité
+        packet_type_lower = packet_type.lower()
+        
+        if packet_type_lower == 'udp':
+            from core.packets.transport.udp import UDPPacket
+            return UDPPacket(**kwargs)
+        elif packet_type_lower == 'tcp':
+            from core.packets.transport.tcp import TCPPacket
+            return TCPPacket(**kwargs)
+        elif packet_type_lower == 'ethernet':
+            from core.packets.base.ethernet import EthernetPacket
+            return EthernetPacket(**kwargs)
+        elif packet_type_lower == 'ipv4':
+            from core.packets.network.ipv4 import IPv4Packet
+            return IPv4Packet(**kwargs)
+        elif packet_type_lower == 'ipv6':
+            from core.packets.network.ipv6 import IPv6Packet
+            return IPv6Packet(**kwargs)
+        elif packet_type_lower == 'arp':
+            from core.packets.network.arp import ARPPacket
+            return ARPPacket(**kwargs)
+        elif packet_type_lower == 'icmp':
+            from core.packets.network.icmp import ICMPPacket
+            return ICMPPacket(**kwargs)
+        elif packet_type_lower == 'dns':
+            from core.packets.application.dns import DNSPacket
+            return DNSPacket(**kwargs)
+        elif packet_type_lower == 'http':
+            from core.packets.application.http import HTTPPacket
+            return HTTPPacket(**kwargs)
+        elif packet_type_lower == 'tecmp':
+            from core.packets.tecmp.tecmp_packet import TECMPPacket
+            return TECMPPacket(**kwargs)
+        else:
+            raise ValueError(f"Unknown packet type: {packet_type}")
+
+
+# TOUT LE RESTE DE VOTRE CODE RESTE 100% IDENTIQUE
+class NetworkPacket(Packet):
+    """Base class for network layer packets"""
+    
+    def __init__(self, src_addr: str, dst_addr: str, **kwargs):
+        super().__init__(**kwargs)
+        self.src_addr = src_addr
+        self.dst_addr = dst_addr
+        self.ttl = kwargs.get('ttl', 64)
+        self.protocol = kwargs.get('protocol', 0)
+        self.checksum = 0
+    
+    @abstractmethod
+    def calculate_checksum(self) -> int:
+        """Calculate packet checksum"""
+        pass
+    
+    def verify_checksum(self) -> bool:
+        """Verify packet checksum"""
+        calculated = self.calculate_checksum()
+        return calculated == self.checksum
+    
+    def get_addresses(self) -> Tuple[str, str]:
+        """Get source and destination addresses"""
+        return (self.src_addr, self.dst_addr)
+    
+    def set_addresses(self, src: str, dst: str) -> None:
+        """Set source and destination addresses"""
+        self.src_addr = src
+        self.dst_addr = dst
+        self._cached_hash = None
+    
+    def decrement_ttl(self) -> int:
+        """Decrement TTL and return new value"""
+        self.ttl = max(0, self.ttl - 1)
+        return self.ttl
+    
+    def is_expired(self) -> bool:
+        """Check if packet has expired (TTL=0)"""
+        return self.ttl <= 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        data = super().to_dict()
+        data.update({
+            'src_addr': self.src_addr,
+            'dst_addr': self.dst_addr,
+            'ttl': self.ttl,
+            'protocol': self.protocol,
+            'checksum': self.checksum
+        })
+        return data
+
+
+class TransportPacket(Packet):
+    """Base class for transport layer packets"""
+    
+    def __init__(self, src_port: int, dst_port: int, **kwargs):
+        super().__init__(**kwargs)
+        self.src_port = src_port
+        self.dst_port = dst_port
+        self.checksum = 0
+        self.sequence_number = kwargs.get('sequence_number', 0)
+    
+    def get_ports(self) -> Tuple[int, int]:
+        """Get source and destination ports"""
+        return (self.src_port, self.dst_port)
+    
+    def set_ports(self, src: int, dst: int) -> None:
+        """Set source and destination ports"""
+        self.src_port = src
+        self.dst_port = dst
+        self._cached_hash = None
+    
+    @abstractmethod
+    def calculate_checksum(self, pseudo_header: bytes) -> int:
+        """Calculate checksum with pseudo header"""
+        pass
+    
+    def verify_checksum(self, pseudo_header: bytes) -> bool:
+        """Verify checksum with pseudo header"""
+        calculated = self.calculate_checksum(pseudo_header)
+        return calculated == self.checksum
+    
+    def is_well_known_port(self) -> Tuple[bool, bool]:
+        """Check if ports are well-known (< 1024)"""
+        return (self.src_port < 1024, self.dst_port < 1024)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        data = super().to_dict()
+        data.update({
+            'src_port': self.src_port,
+            'dst_port': self.dst_port,
+            'checksum': self.checksum,
+            'sequence_number': self.sequence_number
+        })
+        return data
+
+
+class DataLinkPacket(Packet):
+    """Base class for data link layer packets"""
+    
+    def __init__(self, src_mac: str, dst_mac: str, **kwargs):
+        super().__init__(**kwargs)
+        self.src_mac = src_mac
+        self.dst_mac = dst_mac
+        self.ether_type = kwargs.get('ether_type', 0x0800)
+        self.vlan_tag = kwargs.get('vlan_tag', None)
+    
+    def get_addresses(self) -> Tuple[str, str]:
+        """Get source and destination MAC addresses"""
+        return (self.src_mac, self.dst_mac)
+    
+    def set_addresses(self, src: str, dst: str) -> None:
+        """Set MAC addresses"""
+        self.src_mac = src
+        self.dst_mac = dst
+        self._cached_hash = None
+    
+    @staticmethod
+    def mac_to_bytes(mac: str) -> bytes:
+        """Convert MAC address string to bytes"""
+        return bytes.fromhex(mac.replace(':', '').replace('-', ''))
+    
+    @staticmethod
+    def bytes_to_mac(data: bytes) -> str:
+        """Convert bytes to MAC address string"""
+        return ':'.join(f'{b:02x}' for b in data)
+    
+    def is_broadcast(self) -> bool:
+        """Check if destination is broadcast"""
+        return self.dst_mac.upper() == 'FF:FF:FF:FF:FF:FF'
+    
+    def is_multicast(self) -> bool:
+        """Check if destination is multicast"""
+        if self.is_broadcast():
+            return False
+        first_byte = int(self.dst_mac.split(':')[0], 16)
+        return bool(first_byte & 0x01)
+    
+    def is_unicast(self) -> bool:
+        """Check if destination is unicast"""
+        return not (self.is_broadcast() or self.is_multicast())
+    
+    def has_vlan(self) -> bool:
+        """Check if packet has VLAN tag"""
+        return self.vlan_tag is not None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        data = super().to_dict()
+        data.update({
+            'src_mac': self.src_mac,
+            'dst_mac': self.dst_mac,
+            'ether_type': self.ether_type,
+            'vlan_tag': self.vlan_tag,
+            'is_broadcast': self.is_broadcast(),
+            'is_multicast': self.is_multicast(),
+            'is_unicast': self.is_unicast()
+        })
+        return data
+
+
+class ApplicationPacket(Packet):
+    """Base class for application layer packets"""
+    
+    def __init__(self, app_data: bytes = b'', **kwargs):
+        super().__init__(payload=app_data, **kwargs)
+        self.app_data = app_data
+        self.protocol_version = kwargs.get('protocol_version', '1.0')
+        self.content_type = kwargs.get('content_type', 'application/octet-stream')
+    
+    def get_application_data(self) -> bytes:
+        """Get application data"""
+        return self.app_data
+    
+    def set_application_data(self, data: bytes) -> None:
+        """Set application data"""
+        self.app_data = data
+        self.payload = data
+        self._cached_hash = None
+    
+    def get_data_as_string(self, encoding: str = 'utf-8') -> str:
+        """Get application data as string"""
+        try:
+            return self.app_data.decode(encoding)
+        except UnicodeDecodeError:
+            return repr(self.app_data)
+    
+    def set_data_from_string(self, data: str, encoding: str = 'utf-8') -> None:
+        """Set application data from string"""
+        self.set_application_data(data.encode(encoding))
+    
+    def get_content_length(self) -> int:
+        """Get content length"""
+        return len(self.app_data)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        data = super().to_dict()
+        data.update({
+            'protocol_version': self.protocol_version,
+            'content_type': self.content_type,
+            'content_length': self.get_content_length()
+        })
+        return data
+
+
+class PacketBuilder:
+    """Builder for creating complex packet structures"""
+    
+    def __init__(self):
+        self.layers = []
+        self.logger = logging.getLogger("PacketBuilder")
+    
+    def add_layer(self, packet: Packet) -> 'PacketBuilder':
+        """Add a packet layer"""
+        self.layers.append(packet)
+        self.logger.debug(f"Added layer: {packet.get_type()}")  # Changé: .name retiré car get_type() retourne str
+        return self
+    
+    def add_ethernet(self, src_mac: str, dst_mac: str, **kwargs) -> 'PacketBuilder':
+        """Add Ethernet layer"""
+        from core.packets.base.ethernet import EthernetPacket
+        return self.add_layer(EthernetPacket(src_mac=src_mac, dst_mac=dst_mac, **kwargs))
+    
+    def add_ipv4(self, src_ip: str, dst_ip: str, **kwargs) -> 'PacketBuilder':
+        """Add IPv4 layer"""
+        from core.packets.network.ipv4 import IPv4Packet
+        return self.add_layer(IPv4Packet(src_ip=src_ip, dst_ip=dst_ip, **kwargs))
+    
+    def add_ipv6(self, src_ip: str, dst_ip: str, **kwargs) -> 'PacketBuilder':
+        """Add IPv6 layer"""
+        from core.packets.network.ipv6 import IPv6Packet
+        return self.add_layer(IPv6Packet(src_ip=src_ip, dst_ip=dst_ip, **kwargs))
+    
+    def add_tcp(self, src_port: int, dst_port: int, **kwargs) -> 'PacketBuilder':
+        """Add TCP layer with lazy import"""
+        from core.packets.transport.tcp import TCPPacket  # Import local
+        return self.add_layer(TCPPacket(src_port=src_port, dst_port=dst_port, **kwargs))
+    
+    def add_udp(self, src_port: int, dst_port: int, **kwargs) -> 'PacketBuilder':
+        """Add UDP layer with lazy import"""
+        from core.packets.transport.udp import UDPPacket  # Import local
+        return self.add_layer(UDPPacket(src_port=src_port, dst_port=dst_port, **kwargs))
+    
+    def add_payload(self, data: bytes) -> 'PacketBuilder':
+        """Add payload to last layer"""
+        if self.layers:
+            self.layers[-1].set_payload(data)
+        return self
+    
+    def build(self) -> Packet:
+        """Build the complete packet"""
+        if not self.layers:
+            raise ValueError("No layers added")
+        
+        # Encapsulate from inner to outer
+        result = self.layers[-1]
+        for layer in reversed(self.layers[:-1]):
+            layer.encapsulate(result)
+            result = layer
+        
+        self.logger.info(f"Built packet with {len(self.layers)} layers")
+        return result
+    
+    def reset(self) -> 'PacketBuilder':
+        """Reset builder"""
+        self.layers.clear()
+        return self
+    
+    @classmethod
+    def create_tcp_over_ipv4_over_ethernet(cls, 
+                                          src_mac: str, dst_mac: str,
+                                          src_ip: str, dst_ip: str,
+                                          src_port: int, dst_port: int,
+                                          tcp_payload: bytes = b'') -> Packet:
+        """Convenience method to create TCP/IP/Ethernet packet"""
+        builder = cls()
+        return (builder
+                .add_ethernet(src_mac, dst_mac)
+                .add_ipv4(src_ip, dst_ip, protocol=6)
+                .add_tcp(src_port, dst_port)
+                .add_payload(tcp_payload)
+                .build())
+    
+    @classmethod
+    def create_udp_over_ipv4_over_ethernet(cls,
+                                          src_mac: str, dst_mac: str,
+                                          src_ip: str, dst_ip: str,
+                                          src_port: int, dst_port: int,
+                                          udp_payload: bytes = b'') -> Packet:
+        """Convenience method to create UDP/IP/Ethernet packet"""
+        builder = cls()
+        return (builder
+                .add_ethernet(src_mac, dst_mac)
+                .add_ipv4(src_ip, dst_ip, protocol=17)
+                .add_udp(src_port, dst_port)
+                .add_payload(udp_payload)
+                .build())
+
+
+# Packet registry for dynamic packet creation
+_packet_registry: Dict[str, Type[Packet]] = {}
+_packet_filters: List[Callable[[Packet], bool]] = []
+_packet_transformers: List[Callable[[Packet], Packet]] = []
+
+
+def register_packet_type(name: str, packet_class: Type[Packet]) -> None:
+    """Register a packet type"""
+    _packet_registry[name.lower()] = packet_class
+    logging.info(f"Registered packet type: {name}")
+
+
+def unregister_packet_type(name: str) -> None:
+    """Unregister a packet type"""
+    if name.lower() in _packet_registry:
+        del _packet_registry[name.lower()]
+        logging.info(f"Unregistered packet type: {name}")
+
+
+def create_packet(packet_type: str, **kwargs) -> Packet:
+    """Create packet from registered type or use factory method"""
+    packet_class = _packet_registry.get(packet_type.lower())
+    if packet_class:
+        return packet_class(**kwargs)
+    # Fallback to factory method
+    return Packet.create_from_type(packet_type, **kwargs)
+
+
+def get_registered_types() -> List[str]:
+    """Get list of registered packet types"""
+    return list(_packet_registry.keys())
+
+
+def add_packet_filter(filter_func: Callable[[Packet], bool]) -> None:
+    """Add global packet filter"""
+    _packet_filters.append(filter_func)
+
+
+def add_packet_transformer(transform_func: Callable[[Packet], Packet]) -> None:
+    """Add global packet transformer"""
+    _packet_transformers.append(transform_func)
+
+
+def apply_filters(packet: Packet) -> bool:
+    """Apply all filters to packet"""
+    return all(f(packet) for f in _packet_filters)
+
+
+def apply_transformers(packet: Packet) -> Packet:
+    """Apply all transformers to packet"""
+    for transformer in _packet_transformers:
+        packet = transformer(packet)
+    return packet
+
+
+# Utility functions
+def calculate_internet_checksum(data: bytes) -> int:
+    """Calculate Internet checksum"""
+    if len(data) % 2:
+        data += b'\x00'
+    
+    checksum = 0
+    for i in range(0, len(data), 2):
+        word = (data[i] << 8) + data[i + 1]
+        checksum += word
+        checksum = (checksum & 0xFFFF) + (checksum >> 16)
+    
+    return ~checksum & 0xFFFF
+
+
+def format_mac_address(mac: str) -> str:
+    """Format MAC address to standard notation"""
+    mac = mac.replace(':', '').replace('-', '').upper()
+    return ':'.join(mac[i:i+2] for i in range(0, 12, 2))
+
+
+def validate_ip_address(ip: str, version: int = 4) -> bool:
+    """Validate IP address"""
+    try:
+        if version == 4:
+            parts = ip.split('.')
+            if len(parts) != 4:
+                return False
+            for part in parts:
+                if not 0 <= int(part) <= 255:
+                    return False
+            return True
+        elif version == 6:
+            # Simple IPv6 validation
+            return '::' in ip or ip.count(':') == 7
+    except Exception:
+        return False
+    return False
+
+
+# Export all public APIs
+__all__ = [
+    # Base classes
+    'Packet',
+    'NetworkPacket', 
+    'TransportPacket',
+    'DataLinkPacket',
+    'ApplicationPacket',
+    
+    # Builder
+    'PacketBuilder',
+    
+    # Registry functions
+    'register_packet_type',
+    'unregister_packet_type',
+    'create_packet',
+    'get_registered_types',
+    
+    # Filter and transformer functions
+    'add_packet_filter',
+    'add_packet_transformer',
+    'apply_filters',
+    'apply_transformers',
+    
+    # Utility functions
+    'calculate_internet_checksum',
+    'format_mac_address',
+    'validate_ip_address'
+]

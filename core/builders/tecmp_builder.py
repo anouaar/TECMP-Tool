@@ -3,7 +3,7 @@
 """
 Specialized builder for the proprietary TECMP protocol.
 Professional-grade implementation with complete feature integration.
-CORRECTED VERSION - All identified issues fixed
+CORRECTED VERSION - All identified issues fixed and aligned with constants.py
 """
 from __future__ import annotations
 from typing import Any, Dict, Optional, List, Union, Iterator, Tuple, cast
@@ -18,7 +18,11 @@ from dataclasses import dataclass, field
 from core.packets.tecmp.tecmp_packet import TECMPPacket
 from core.packets.tecmp.tecmp_data import TECMPDataBuilder
 from core.packets.tecmp.validator import TECMPValidator
-from core.packets.tecmp.constants import *
+from core.packets.tecmp.constants import (
+    DataType, MessageType, DeviceFlags,
+    CANDataFlags, CANFDDataFlags, LINDataFlags, FlexRayDataFlags,
+    UARTDataFlags, AnalogDataFlags, EthernetDataFlags
+)
 
 try:
     from core.packets.tecmp.coherence_engine import TECMPCoherenceEngine, create_coherence_engine
@@ -43,8 +47,8 @@ class TECMPConfig:
     device_id: int = 0x0080
     counter: int = 0
     version: int = 3
-    message_type: int = 0x03
-    data_type: int = 0x80
+    message_type: int = MessageType.LOGGING_STREAM
+    data_type: int = DataType.ETHERNET_II
     reserved: int = 0x0000
     device_flags: int = 0x0007
     interface_id: int = 0x00002d4a
@@ -68,40 +72,66 @@ class TECMPConfig:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
 class TECMPPacketBuilder:
+    # Use DataType constants instead of hardcoded values
     PROTOCOL_TO_DATATYPE = {
-        "Ethernet": 0x80,
-        "CAN": 0x02,
-        "CAN-FD": 0x03,
-        "LIN": 0x04,
-        "FlexRay": 0x08,
-        "UART": 0x10, 
-        "UART/RS232": 0x10,
-        "Analog": 0x20,
-        "Digital": 0x40
+        "Ethernet": DataType.ETHERNET_II,
+        "CAN": DataType.CAN,
+        "CAN-FD": DataType.CAN_FD,
+        "LIN": DataType.LIN,
+        "FlexRay": DataType.FLEXRAY,
+        "UART": DataType.UART_RS232,
+        "UART/RS232": DataType.UART_RS232,
+        "Analog": DataType.ANALOG,
+        "Digital": DataType.DIGITAL
     }
     
-    MSG_TYPE_CONTROL = 0x00
-    MSG_TYPE_LOGGING_STREAM = 0x03
-    MSG_TYPE_REPLAY_DATA = 0x0A
+    # Use MessageType constants
+    MSG_TYPE_CONTROL = MessageType.CONTROL
+    MSG_TYPE_LOGGING_STREAM = MessageType.LOGGING_STREAM
+    MSG_TYPE_REPLAY_DATA = MessageType.REPLAY_DATA
     
-    FLAG_EOS = 0x01
-    FLAG_SOS = 0x02
-    FLAG_SPY = 0x04
-    FLAG_MULTI_FRAME = 0x08
+    # Use DeviceFlags constants
+    FLAG_EOS = DeviceFlags.EOS
+    FLAG_SOS = DeviceFlags.SOS
+    FLAG_SPY = DeviceFlags.SPY
+    FLAG_MULTI_FRAME = DeviceFlags.MULTI_FRAME
     
-    FLAG_OVERFLOW = 0x0001
-    FLAG_TX = 0x0002
-    FLAG_CRC_ERROR = 0x0004
+    # Common data flags
+    FLAG_OVERFLOW = 0x8000  # Common across protocols
+    FLAG_TX = 0x2000        # Common for CAN/CAN-FD/LIN
+    FLAG_CRC_ERROR = 0x1000 # Common for CAN/CAN-FD
     
     DEVICE_ID_CM1000_HIGH1 = 0x0091
     
     TS_SYNC_NONE = 0
     TS_SYNC_MASTER = 1
     
-    def __init__(self) -> None:
+    def __init__(self, *args, **kwargs) -> None:
+        """Initialize TECMPPacketBuilder with flexible arguments"""
         self.logger = logging.getLogger("TECMP-Tool.TECMPPacketBuilder")
         
+        # Handle flexible initialization
+        self.parent = None
+        initial_config = {}
+        
+        if len(args) > 0:
+            self.parent = args[0]
+        if len(args) > 1 and isinstance(args[1], dict):
+            initial_config = args[1]
+        
+        # Get config from kwargs if provided
+        if 'config' in kwargs and isinstance(kwargs['config'], dict):
+            initial_config.update(kwargs['config'])
+        if 'parent' in kwargs and self.parent is None:
+            self.parent = kwargs['parent']
+        
         self._config = TECMPConfig()
+        
+        # Apply initial config if provided
+        for key, value in initial_config.items():
+            if hasattr(self._config, key):
+                setattr(self._config, key, value)
+        
         self._segments: List[TECMPPacket] = []
         self._qos_settings = {
             "priority": 0,
@@ -262,7 +292,7 @@ class TECMPPacketBuilder:
         # Only use for data type detection
         if protocols:
             data_type = self.detect_data_type_from_protocols(protocols)
-            if data_type != 0x80 or self._config.data_type == 0x80:
+            if data_type != DataType.ETHERNET_II or self._config.data_type == DataType.ETHERNET_II:
                 self._config.data_type = data_type
         
         return self
@@ -385,7 +415,7 @@ class TECMPPacketBuilder:
         return self
     
     def detect_data_type_from_protocols(self, protocols: List) -> int:
-        data_type = 0x80
+        data_type = DataType.ETHERNET_II  # Default to ETHERNET_II instead of hardcoded 0x80
         
         if not protocols:
             return data_type
@@ -414,7 +444,7 @@ class TECMPPacketBuilder:
                         data_type = proto_data_type
                         break
                 
-                if data_type != 0x80:
+                if data_type != DataType.ETHERNET_II:
                     break
         
         # Cache result
@@ -783,7 +813,7 @@ class TECMPPacketBuilder:
                 segment_data = mem_view[start:end].tobytes()
                 
                 # Clear existing EOS/SOS flags
-                device_flags = self._config.device_flags & ~0x03
+                device_flags = self._config.device_flags & ~(DeviceFlags.EOS | DeviceFlags.SOS)
                 
                 # Set appropriate flags for segments
                 if i == 0:
@@ -846,7 +876,7 @@ class TECMPPacketBuilder:
                 segment_data = mem_view[start:end].tobytes()
                 
                 # Clear existing EOS/SOS flags
-                device_flags = self._config.device_flags & ~0x03
+                device_flags = self._config.device_flags & ~(DeviceFlags.EOS | DeviceFlags.SOS)
                 
                 # Set appropriate flags for segments
                 if i == 0:
@@ -939,8 +969,8 @@ class TECMPPacketBuilder:
                 .with_device_id(0x0091)
                 .with_counter(26836)
                 .with_version(3)
-                .with_message_type(0x03)
-                .with_data_type(0x0080)
+                .with_message_type(MessageType.LOGGING_STREAM)
+                .with_data_type(DataType.ETHERNET_II)
                 .with_reserved(0x0000)
                 .with_device_flags(0x0007)
                 .with_interface_id(0x00002d4a)
@@ -988,33 +1018,6 @@ class TECMPPacketBuilder:
 # ONE-LINE API
 # =============================================================================
 
-def Builder(mode="professional", device_id=0x0040):
-    """
-    One-line Builder setup - Everything automatic!
-    
-    Args:
-        mode: "professional" or "automotive" 
-        device_id: Device identifier (default: 0x0040)
-        
-    Returns:
-        Fully configured TECMPPacketBuilder with fluent interface
-        
-    Example:
-        # Professional builder with all features
-        builder = Builder("professional") 
-        packet = builder.with_payload(b'\x01\x02').build()
-        
-        # Automotive builder for vehicle protocols
-        builder = Builder("automotive")
-        packet = builder.with_automotive_can(0x123, b'\xAA\xBB').build()
-    """
-    if mode == "professional":
-        return TECMPPacketBuilder.professional_builder(device_id)
-    elif mode == "automotive":
-        return TECMPPacketBuilder.automotive_builder(device_id)
-    else:
-        return TECMPPacketBuilder()
-
 __all__ = [
     # Main classes
     'TECMPPacketBuilder',
@@ -1023,5 +1026,7 @@ __all__ = [
     'TECMPConfig',
     
     # ONE-LINE API
-    'Builder'                       
+    # 'Builder' - moved to builder_api.py                       
 ]
+# Alias for backward compatibility
+Builder = TECMPPacketBuilder

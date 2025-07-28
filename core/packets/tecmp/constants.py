@@ -58,6 +58,9 @@ STATUS_CONFIG_INTERVAL_S = 60       # Status Configuration interval - Page 27
 ANNOUNCE_TIMEOUT_MS = 250           # PTP announce timeout
 PATH_DELAY_REQ_INTERVAL_S = 1       # PTP path delay request interval
 
+# Default MAC address (multicast) - Page 9
+DEFAULT_DST_MAC = "01:00:5E:00:00:00"
+
 # ============================================================================
 # MESSAGE TYPES - Table 23, Page 36-37
 # ============================================================================
@@ -66,9 +69,9 @@ class MessageType(IntEnum):
     """TECMP Message Types according to specification Table 23"""
     CONTROL = 0x00          # Control messages
     STATUS_DEVICE = 0x01    # Device status information
-    STATUS_BUS = 0x02       # Bus/IVN status information
+    STATUS_BUS = 0x02       # Status Bus/IVN
     LOGGING_STREAM = 0x03   # Captured IVN data
-    STATUS_CONFIG = 0x04    # Configuration status
+    STATUS_CONFIG = 0x04    # Status Configuration
     REPLAY_DATA = 0x0A      # Data for replay on IVN
 
 # ============================================================================
@@ -82,11 +85,13 @@ class DataType(IntEnum):
     CAN_FD = 0x0003             # CAN with Flexible Data-rate
     LIN = 0x0004                # Local Interconnect Network
     FLEXRAY = 0x0008            # FlexRay
-    UART = 0x0010               # UART/RS-232
+    UART_RS232 = 0x0010         # UART/RS232
     ANALOG = 0x0020             # Analog values
     DIGITAL = 0x0040            # Digital I/O
-    ETHERNET = 0x0080           # Ethernet II (deprecated)
-    ETHERNET_EXT = 0x0080       # Ethernet II Extended format
+    ETHERNET_II = 0x0080        # Ethernet II (classical Ethernet frame)
+    # Legacy aliases for backward compatibility
+    ETHERNET = 0x0080           # Deprecated - use ETHERNET_II
+    ETHERNET_EXT = 0x0080       # Deprecated - use ETHERNET_II
 
 # ============================================================================
 # DEVICE FLAGS - Section 2.4.1, Page 11
@@ -128,6 +133,7 @@ class CANFDDataFlags(IntFlag):
     IDE = 0x0004                # Bit 2: Identifier Extension (29-bit)
     ERR = 0x0008                # Bit 3: Error frame
     BRS = 0x0010                # Bit 4: Bit Rate Switch
+    BIT_STUFF_ERROR = 0x0010    # Bit 4: Bit stuffing error
     CRC_DEL_ERROR = 0x0020      # Bit 5: CRC delimiter error
     ACK_DEL_ERROR = 0x0040      # Bit 6: ACK delimiter error
     EOF_ERROR = 0x0080          # Bit 7: End of frame error
@@ -148,7 +154,7 @@ class LINDataFlags(IntFlag):
     SLEEP = 0x0400              # Bit 10: Sleep command
     # Bit 11: Reserved (must be 0)
     CHECKSUM_ERROR = 0x1000     # Bit 12: Checksum error
-    TX = 0x2000                 # Bit 13: Frame was transmitted (CORRECTED)
+    TX = 0x2000                 # Bit 13: Frame was transmitted
     # Bit 14: Reserved (must be 0)
     OVERFLOW = 0x8000           # Bit 15: Interface overflow
 
@@ -162,7 +168,7 @@ class FlexRayDataFlags(IntFlag):
     CAS = 0x0020                # Bit 5: Collision Avoidance Symbol
     # Bits 6-11: Reserved (must be 0)
     HEADER_CRC_ERROR = 0x1000   # Bit 12: Header CRC error
-    FRAME_CRC_ERROR = 0x2000    # Bit 13: Frame CRC error (ADDED)
+    FRAME_CRC_ERROR = 0x2000    # Bit 13: Frame CRC error
     TX = 0x4000                 # Bit 14: Frame was transmitted
     OVERFLOW = 0x8000           # Bit 15: Interface overflow
 
@@ -170,8 +176,7 @@ class UARTDataFlags(IntFlag):
     """UART Data Flags - Section 2.4.3.5, Page 19"""
     PARITY_ERROR = 0x0001       # Bit 0: Parity error
     # Bits 1-3: Data Length (DL) - see UART_DATA_LENGTH
-    # Bits 4-12: Reserved (must be 0)
-    # Bit 13: Reserved (must be 0) (CORRECTED)
+    # Bits 4-13: Reserved (must be 0)
     TX = 0x4000                 # Bit 14: Data was transmitted
     # Bit 15: Reserved (must be 0)
 
@@ -224,15 +229,25 @@ class EthernetDataFlags(IntFlag):
 # DEVICE ID RANGES - Table 25, Page 37
 # ============================================================================
 
-# Device ID ranges by device type
+# Device ID ranges by device type (with official CM_ prefix)
 DEVICE_ID_RANGES: Dict[str, Union[range, List[int]]] = {
-    "LIN_COMBO": range(0x30, 0x40),        # 0x30-0x3F: LIN Combo devices
-    "CAN_COMBO": range(0x40, 0x50),        # 0x40-0x4F: CAN Combo devices
-    "HIGH_100": range(0x50, 0x60),         # 0x50-0x5F: 100 High devices
-    "ETH_COMBO": range(0x60, 0x70),        # 0x60-0x6F: Ethernet Combo devices
-    "HIGH_1000": range(0x70, 0x80),        # 0x70-0x7F: 1000 High devices
+    "CM_LIN_COMBO": range(0x30, 0x40),     # 0x30-0x3F: CM LIN Combo devices
+    "CM_CAN_COMBO": range(0x40, 0x50),     # 0x40-0x4F: CM CAN Combo devices
+    "CM_100_HIGH": range(0x50, 0x60),      # 0x50-0x5F: CM 100 High devices
+    "CM_ETH_COMBO": range(0x60, 0x70),     # 0x60-0x6F: CM Eth Combo devices
+    "CM_1000_HIGH": range(0x70, 0x80),     # 0x70-0x7F: CM 1000 High devices
     "STANDARD": [0x0080, 0x0091],          # Standard device IDs
     # Note: 0x00-0x2F reserved, 0x92-0xFF reserved for future use
+}
+
+# Legacy mapping for backward compatibility
+DEVICE_ID_RANGES_LEGACY: Dict[str, Union[range, List[int]]] = {
+    "LIN_COMBO": range(0x30, 0x40),
+    "CAN_COMBO": range(0x40, 0x50),
+    "HIGH_100": range(0x50, 0x60),
+    "ETH_COMBO": range(0x60, 0x70),
+    "HIGH_1000": range(0x70, 0x80),
+    "STANDARD": [0x0080, 0x0091],
 }
 
 # Device IP address template
@@ -281,7 +296,7 @@ class DeviceType(IntEnum):
 # Special Interface IDs for Status and Control messages
 SPECIAL_INTERFACE_IDS: Dict[str, int] = {
     "STATUS_CONFIG": 0x000FFF00,        # Status Configuration messages
-    "STATUS_BUS": 0x000FFF01,           # Status Bus/IVN messages
+    "STATUS_BUS": 0x000FFF01,           # Status Bus/IVN messages  
     "STATUS_DEVICE": 0x000FFF02,        # Status Device messages
     "CONTROL": 0x000FFF03,              # Control messages
 }
@@ -299,11 +314,10 @@ MAX_PAYLOAD_SIZES: Dict[int, int] = {
     DataType.CAN_FD: 72,                # CAN-FD: 64 data + overhead
     DataType.LIN: 11,                   # LIN: 8 data + overhead
     DataType.FLEXRAY: 263,              # FlexRay: 254 data + overhead
-    DataType.UART: 1000,                # UART: max 1000 symbols per frame
+    DataType.UART_RS232: 1000,          # UART: max 1000 symbols per frame
     DataType.ANALOG: 1400,              # Analog: max 700 samples
     DataType.DIGITAL: 1400,             # Digital I/O
-    DataType.ETHERNET: 1518,            # Full Ethernet frame
-    DataType.ETHERNET_EXT: 1518,        # Full Ethernet frame
+    DataType.ETHERNET_II: 1518,         # Full Ethernet frame
 }
 
 # ============================================================================
@@ -437,11 +451,10 @@ def get_data_type_name(data_type: int) -> str:
         DataType.CAN_FD: "CAN-FD",
         DataType.LIN: "LIN",
         DataType.FLEXRAY: "FlexRay",
-        DataType.UART: "UART/RS-232",
+        DataType.UART_RS232: "UART/RS-232",
         DataType.ANALOG: "Analog",
         DataType.DIGITAL: "Digital I/O",
-        DataType.ETHERNET: "Ethernet II",
-        DataType.ETHERNET_EXT: "Ethernet II Extended",
+        DataType.ETHERNET_II: "Ethernet II",
     }
     return names.get(data_type, f"Unknown (0x{data_type:04X})")
 
@@ -672,6 +685,7 @@ __all__ = [
     'TECMP_TOTAL_HEADER_SIZE', 'TECMP_MIN_FRAME_SIZE', 'TECMP_MAX_FRAME_SIZE',
     'MAX_UNSEGMENTED_SIZE', 'MAX_ETHERNET_PAYLOAD',
     'SYNC_TIMEOUT_NS', 'STATUS_DEVICE_INTERVAL_S', 'STATUS_BUS_INTERVAL_S', 'STATUS_CONFIG_INTERVAL_S',
+    'DEFAULT_DST_MAC',
     
     # Enumerations
     'MessageType', 'DataType', 'DeviceFlags',
@@ -684,6 +698,7 @@ __all__ = [
     'DEVICE_ID_RANGES', 'SPECIAL_INTERFACE_IDS', 'INTERFACE_ID_NAMES',
     'MAX_PAYLOAD_SIZES', 'CANFD_DLC_TO_LENGTH', 'CANFD_LENGTH_TO_DLC',
     'CONTROL_MESSAGE_ID_RANGES', 'PHYSICAL_LIMITS', 'TIMING_CONSTRAINTS',
+    'DEVICE_ID_RANGES_LEGACY',
     
     # Protocol-specific constants
     'CAN_ID_11BIT_MAX', 'CAN_ID_29BIT_MAX',
@@ -703,5 +718,6 @@ __all__ = [
     'validate_flexray_cycle', 'validate_flexray_frame_id',
     'validate_lin_id', 'validate_lin_data_length',
     
-   
+    # Legacy compatibility
+    'ETHERNET', 'ETHERNET_EXT',
 ]

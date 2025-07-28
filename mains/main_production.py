@@ -26,7 +26,7 @@ from core.config.config_loader import ConfigLoader
 from core.config.settings_manager import SettingsManager
 
 # 2. Core Services
-from core.interfaces.controllers.core.error_handler import ErrorHandler
+from core.interfaces.controllers.core.error_handler import TECMPErrorHandler as ErrorHandler
 from core.interfaces.controllers.core.memory_controller import MemoryController
 from core.interfaces.controllers.core.undo_redo_controller import UndoRedoController
 from core.interfaces.controllers.core.file_system_controller import FileSystemController
@@ -41,7 +41,7 @@ from core.management.pcap_generator import PcapGenerator
 from core.management.resource_manager import ResourceManager
 
 # 5. Builders
-from core.builders.packet_builder import PacketBuilder
+from core.builders.packet_builder import RealPacketBuilder as PacketBuilder
 from core.builders.tecmp_builder import TECMPPacketBuilder
 
 # 6. Facade

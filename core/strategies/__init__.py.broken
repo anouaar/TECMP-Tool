@@ -1,0 +1,106 @@
+# -*- coding: utf-8 -*-
+"""
+Strategies Package - TECMP Tool Implementation
+Author: TECMP-Tool Development Team
+Description: Packet transmission strategies with working imports only
+"""
+
+# Import only what actually exists in sender_strategy.py
+try:
+    from core.strategies.sender_strategy import (
+        # Enums that exist
+        StrategyStatus,
+        SenderType, 
+        TransmissionProtocol,
+        Priority,
+        
+        # Data structures that exist
+        NetworkInterface,
+        TransmissionTarget,
+        SenderConfiguration,
+        StrategyConfiguration,
+        StrategyMetrics,
+        
+        # Interfaces that exist
+        Sender,
+        
+        # Base classes that exist
+        BaseSender,
+        SenderStrategy,
+        
+        # Implementations that exist
+        UDPSender,
+        TCPSender,
+        FileSender,
+        MockSender,
+        
+        # Factory that exists
+        SenderFactory,
+        
+        # Utility functions that exist
+        create_strategy_config,
+        create_sender_config,
+        create_mock_senders
+    )
+except ImportError as e:
+    # Graceful fallback for missing components
+    print(f"Warning: Some strategy components unavailable: {e}")
+    StrategyStatus = None
+    SenderStrategy = None
+
+# Import concrete strategies (with fallbacks)
+try:
+    from core.strategies.single import SinglePacketStrategy
+except ImportError:
+    SinglePacketStrategy = None
+
+try:
+    from core.strategies.priority import PriorityStrategy
+except ImportError:
+    PriorityStrategy = None
+
+try:
+    from core.strategies.multi import MultiPacketStrategy
+except ImportError:
+    MultiPacketStrategy = None
+
+try:
+    from core.strategies.ramp_speed import RampSpeedStrategy
+except ImportError:
+    RampSpeedStrategy = None
+
+try:
+    from core.strategies.multicast import MulticastStrategy
+except ImportError:
+    MulticastStrategy = None
+
+# Export only what we actually have
+__all__ = [
+    # Core base classes (if available)
+    'SenderStrategy',
+    'StrategyStatus',
+    'SenderConfiguration',
+    'StrategyConfiguration',
+    'Sender',
+    
+    # Sender implementations
+    'MockSender',
+    'UDPSender', 
+    'TCPSender',
+    'FileSender',
+    'SenderFactory',
+    
+    # Strategy implementations (may be None)
+    'SinglePacketStrategy',
+    'PriorityStrategy', 
+    'MultiPacketStrategy',
+    'RampSpeedStrategy',
+    'MulticastStrategy',
+    
+    # Utilities
+    'create_mock_senders',
+    'create_strategy_config'
+]
+
+# Remove None entries from __all__
+__all__ = [name for name in __all__ if globals().get(name) is not None]

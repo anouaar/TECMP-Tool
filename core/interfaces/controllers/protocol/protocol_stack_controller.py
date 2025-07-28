@@ -67,7 +67,7 @@ class StackStatistics:
 
 
 class ProtocolStackController(QObject):
-    """Protocol Stack Controller avec intégration des factories réelles."""
+    """Protocol Stack Controller avec intgration des factories reelles."""
     
     # Qt signals
     stack_changed = pyqtSignal(list)
@@ -186,7 +186,7 @@ class ProtocolStackController(QObject):
         self._ui_builders = None
         self._views = None
         
-        self._strict_validation = False  # Non strict par défaut
+        self._strict_validation = False  # Non strict par defaut
         self._auto_validate = True
         self._auto_build_packets = False
         self._max_stack_size = 20
@@ -1175,4 +1175,4 @@ class ProtocolStackController(QObject):
         self.logger.info(f"Auto packet building {'enabled' if auto else 'disabled'}")
     
     def start_monitoring(self):
-        self.logger.info("Protocol stack controller mon
+        self.logger.info("Protocol stack controller monitoring active")

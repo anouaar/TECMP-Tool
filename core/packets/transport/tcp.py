@@ -1,10 +1,7 @@
 import struct
 from typing import Optional, Dict, List, Tuple
-from core.packets.base.packet import (
-    Packet,
-    PacketParsingError,
-    PacketSerializationError,
-    PacketValidationError,
+from core.packets.base.exceptions import PacketParsingError, PacketSerializationError, PacketValidationError
+from core.packets.base.packet import Packet
 )
 
 class TCPPacket(Packet):

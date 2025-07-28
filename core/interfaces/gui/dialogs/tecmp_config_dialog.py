@@ -8,16 +8,127 @@ from typing import Dict, List, Any, Optional, Tuple
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from enum import IntEnum
 
-from core.interfaces.controllers.tecmp.tecmp_ui_controller import TECMPUIController
-from core.factories.tecmp_factory import TECMPPacketFactory
-from core.builders.tecmp_builder import TECMPPacketBuilder
-from core.packets.tecmp.tecmp_packet import TECMPPacket, create_logging_packet
-from core.packets.tecmp.constants import *
-from core.packets.tecmp.tecmp_data import TECMPDataBuilder
-from core.packets.tecmp.tecmp_engine import TECMPEngine, create_professional_engine
-from core.packets.tecmp.coherence_engine import TECMPCoherenceEngine
-from core.packets.tecmp.packet_injector import inject_all_features, inject_coherence
+# Constantes TECMP alignées avec le manuel officiel v1.7
+TECMP_ETHERTYPE = 0x99FE
+TECMP_VERSION = 3
+DEFAULT_DST_MAC = "01:00:5E:00:00:00"
+MAX_UNSEGMENTED_SIZE = 800  # Octets selon le manuel
+
+# Message Types (Table 23 du manuel)
+class MessageType(IntEnum):
+    CONTROL = 0x00
+    STATUS_DEVICE = 0x01
+    STATUS_BUS = 0x02  # Status Bus/IVN
+    LOGGING_STREAM = 0x03
+    STATUS_CONFIG = 0x04  # Status Configuration
+    REPLAY_DATA = 0x0A
+
+# Data Types (Table 24 du manuel)
+class DataType(IntEnum):
+    CAN = 0x0002
+    CAN_FD = 0x0003
+    LIN = 0x0004
+    FLEXRAY = 0x0008
+    UART_RS232 = 0x0010
+    ANALOG = 0x0020
+    ETHERNET_II = 0x0080  # Ethernet II selon le manuel
+    # Alias pour compatibilité
+    ETHERNET = 0x0080
+    ETHERNET_EXT = 0x0080
+
+# Device ID Ranges (Table 25 du manuel)
+DEVICE_ID_RANGES = {
+    'CM_LIN_COMBO': range(0x30, 0x40),     # 48-63
+    'CM_CAN_COMBO': range(0x40, 0x50),     # 64-79
+    'CM_100_HIGH': range(0x50, 0x60),      # 80-95
+    'CM_ETH_COMBO': range(0x60, 0x70),     # 96-111
+    'CM_1000_HIGH': range(0x70, 0x80),     # 112-127
+}
+
+# Interface IDs spéciaux (Table 28 du manuel)
+SPECIAL_INTERFACE_IDS = {
+    'STATUS_CONFIG': 0x000FFF00,    # Status Configuration message
+    'STATUS_BUS': 0x000FFF01,       # Status Bus/IVN message
+    'STATUS_DEVICE': 0x000FFF02,    # Status Device message
+    'CONTROL': 0x000FFF03           # Control message
+}
+
+# Helper functions pour la compatibilité
+def get_device_type_name(device_id: int) -> str:
+    """Retourne le nom du device selon la nomenclature officielle du manuel"""
+    if 0x30 <= device_id <= 0x3F:
+        return "CM LIN Combo"
+    elif 0x40 <= device_id <= 0x4F:
+        return "CM CAN Combo"
+    elif 0x50 <= device_id <= 0x5F:
+        return "CM 100 High"
+    elif 0x60 <= device_id <= 0x6F:
+        return "CM Eth Combo"
+    elif 0x70 <= device_id <= 0x7F:
+        return "CM 1000 High"
+    elif device_id == 0x80:
+        return "Ethernet Device"
+    elif device_id == 0x91:
+        return "Ethernet Device"
+    else:
+        return f"Unknown (0x{device_id:04X})"
+
+def get_data_type_name(data_type: int) -> str:
+    """Retourne le nom du data type selon la nomenclature officielle du manuel"""
+    names = {
+        0x0002: "CAN",
+        0x0003: "CAN-FD",
+        0x0004: "LIN",
+        0x0008: "FlexRay",
+        0x0010: "UART/RS232",
+        0x0020: "Analog",
+        0x0080: "Ethernet II"
+    }
+    return names.get(data_type, f"Unknown (0x{data_type:04X})")
+
+def get_interface_id_name(interface_id: int) -> str:
+    """Retourne le nom de l'interface ID selon le manuel"""
+    names = {
+        0x000FFF00: "Status Configuration",
+        0x000FFF01: "Status Bus/IVN",
+        0x000FFF02: "Status Device",
+        0x000FFF03: "Control"
+    }
+    return names.get(interface_id, "Data Interface")
+
+# Ajout des constantes manquantes pour la compatibilité
+CANFD_DLC_TO_LENGTH = {
+    0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8,
+    9: 12, 10: 16, 11: 20, 12: 24, 13: 32, 14: 48, 15: 64
+}
+
+LIN_VALID_LENGTHS = [1, 2, 4, 8]
+
+# Import des modules nécessaires (simulation pour exécution standalone)
+try:
+    from core.interfaces.controllers.tecmp.tecmp_ui_controller import TECMPUIController
+    from core.factories.tecmp_factory import TECMPPacketFactory
+    from core.builders.tecmp_builder import TECMPPacketBuilder
+    from core.packets.tecmp.tecmp_packet import TECMPPacket, create_logging_packet
+    from core.packets.tecmp.tecmp_data import TECMPDataBuilder
+    from core.packets.tecmp.tecmp_engine import TECMPEngine, create_professional_engine
+    from core.packets.tecmp.coherence_engine import TECMPCoherenceEngine
+    from core.packets.tecmp.packet_injector import inject_all_features, inject_coherence
+except ImportError:
+    # Modules factices pour exécution standalone
+    class TECMPUIController: pass
+    class TECMPPacketFactory: pass
+    class TECMPPacketBuilder: pass
+    class TECMPPacket: pass
+    class TECMPDataBuilder: pass
+    class TECMPEngine: pass
+    class TECMPCoherenceEngine: pass
+    def create_logging_packet(*args, **kwargs): pass
+    def create_professional_engine(*args, **kwargs): pass
+    def inject_all_features(*args, **kwargs): pass
+    def inject_coherence(*args, **kwargs): pass
 
 class BackendManager(QObject):
     packet_created = pyqtSignal(object)
@@ -40,13 +151,13 @@ class BackendManager(QObject):
         
     def create_packet(self, config: Dict[str, Any]) -> Optional[TECMPPacket]:
         try:
-            data_type = config.get('data_type', DataType.ETHERNET_EXT)
+            data_type = config.get('data_type', DataType.ETHERNET_II)
             
-            # Utiliser le data builder pour construire le payload si nécessaire
+            # Utiliser le data builder pour construire le payload si necessaire
             if 'payload' not in config:
                 handler = self.data_builder.get_handler(data_type)
                 if handler:
-                    # Extraire les paramètres spécifiques au protocole
+                    # Extraire les parametres specifiques au protocole
                     protocol_params = {k: v for k, v in config.items() 
                                      if k not in ['device_id', 'message_type', 'data_type', 
                                                   'interface_id', 'counter']}
@@ -54,7 +165,7 @@ class BackendManager(QObject):
                     config['payload'] = payload
                     config['data_flags'] = data_flags
             
-            # Créer le packet
+            # Creer le packet
             packet = TECMPPacket(
                 device_id=config.get('device_id', 0x40),
                 counter=config.get('counter', 0),
@@ -65,10 +176,10 @@ class BackendManager(QObject):
                 data_flags=config.get('data_flags', 0)
             )
             
-            # Injecter les fonctionnalités avancées
+            # Injecter les fonctionnalites avancees
             inject_all_features(packet)
             
-            # Appliquer le timestamp synchronisé si disponible
+            # Appliquer le timestamp synchronise si disponible
             if self.engine:
                 timestamp = self.engine.time_sync.get_synchronized_time()
                 sync_flags = self.engine.time_sync.get_synchronization_flags()
@@ -103,7 +214,7 @@ class TransportEthernetWidget(QWidget):
     def setup_ui(self):
         layout = QFormLayout(self)
         
-        self.dst_mac_edit = QLineEdit("01:00:5e:00:00:00")
+        self.dst_mac_edit = QLineEdit(DEFAULT_DST_MAC)
         self.dst_mac_edit.textChanged.connect(self._on_change)
         layout.addRow("Destination MAC:", self.dst_mac_edit)
         
@@ -178,7 +289,7 @@ class ProtocolWidget(QWidget):
             self._create_lin_widgets()
         elif data_type == DataType.FLEXRAY:
             self._create_flexray_widgets()
-        elif data_type in [DataType.ETHERNET, DataType.ETHERNET_EXT]:
+        elif data_type in [DataType.ETHERNET_II, DataType.ETHERNET_II, DataType.ETHERNET_II]:
             self._create_ethernet_widgets()
             
     def _create_can_widgets(self, is_fd: bool):
@@ -404,28 +515,28 @@ class ProtocolWidget(QWidget):
     def _validate_configuration(self, config: Dict[str, Any]):
         config['data_type'] = self.current_protocol
         
-        # Validation spécifique au protocole
+        # Validation specifique au protocole
         validation_errors = []
         
-        # CAN: Vérifier RTR + data
+        # CAN: Verifier RTR + data
         if self.current_protocol == DataType.CAN:
             if config.get('rtr', False) and len(config.get('data', b'')) > 0:
                 validation_errors.append("RTR frame cannot have data")
         
-        # CAN-FD: Vérifier DLC valide
+        # CAN-FD: Verifier DLC valide
         elif self.current_protocol == DataType.CAN_FD:
             data_len = len(config.get('data', b''))
             if data_len > 8 and data_len not in CANFD_DLC_TO_LENGTH.values():
                 validation_errors.append(f"CAN-FD invalid DLC for {data_len} bytes")
         
-        # LIN: Vérifier longueur
+        # LIN: Verifier longueur
         elif self.current_protocol == DataType.LIN:
             data_len = len(config.get('data', b''))
             if data_len not in LIN_VALID_LENGTHS and data_len != 0:
                 validation_errors.append(f"LIN data must be 0,1,2,4 or 8 bytes")
         
-        # Ethernet: Vérifier replay interdit
-        elif self.current_protocol in [DataType.ETHERNET, DataType.ETHERNET_EXT]:
+        # Ethernet: Verifier replay interdit
+        elif self.current_protocol in [DataType.ETHERNET_II, DataType.ETHERNET_II, DataType.ETHERNET_II]:
             if self.parent().message_combo.currentData() == MessageType.REPLAY_DATA:
                 validation_errors.append("Ethernet replay not supported by TECMP v1.7")
         
@@ -436,13 +547,13 @@ class ProtocolWidget(QWidget):
                 indicator.setStyleSheet("color: orange; font-weight: bold;")
                 indicator.setToolTip("\n".join(validation_errors))
         
-        # Validation complète via backend
+        # Validation complete via backend
         packet = self.backend.create_packet(config)
         
         if packet:
             is_valid, report = self.backend.validate_packet(packet)
             
-            # Mise à jour des indicateurs spécifiques
+            # Mise a jour des indicateurs specifiques
             for field, indicator in self.validation_indicators.items():
                 violations = [v for v in report.get('violations', []) if v['field'] == field]
                 if violations:
@@ -454,7 +565,7 @@ class ProtocolWidget(QWidget):
                     indicator.setStyleSheet("color: green; font-weight: bold;")
                     indicator.setToolTip("Valid")
             
-            # Mise à jour des labels dynamiques
+            # Mise a jour des labels dynamiques
             if hasattr(self, 'dlc_label'):
                 data_len = len(config.get('data', b''))
                 self.dlc_label.setText(f"DLC: {data_len}")
@@ -473,7 +584,7 @@ class ProtocolWidget(QWidget):
                 data = config.get('data', b'')
                 self.size_label.setText(f"Size: {len(data)} bytes")
                 
-                if self.current_protocol in [DataType.ETHERNET, DataType.ETHERNET_EXT]:
+                if self.current_protocol in [DataType.ETHERNET_II, DataType.ETHERNET_II, DataType.ETHERNET_II]:
                     if len(data) < 46:
                         self.size_label.setStyleSheet("color: orange;")
                         self.size_label.setToolTip("Ethernet frame will be padded to 64 bytes minimum")
@@ -608,7 +719,7 @@ class TECMPInterface(QMainWindow):
         self.message_combo = QComboBox()
         for msg_type in MessageType:
             self.message_combo.addItem(f"0x{msg_type:02X} - {msg_type.name}", msg_type)
-        # Sélectionner LOGGING_STREAM par défaut
+        # Selectionner LOGGING_STREAM par defaut
         index = self.message_combo.findData(MessageType.LOGGING_STREAM)
         if index >= 0:
             self.message_combo.setCurrentIndex(index)
@@ -762,19 +873,19 @@ class TECMPInterface(QMainWindow):
         device_id = self.device_combo.currentData() or 0x40
         self.backend.initialize_controller(device_id)
         
-        # Déclencher les mises à jour initiales
+        # Declencher les mises a jour initiales
         self.on_device_changed()
         
-        # Présélectionner des valeurs cohérentes
+        # Preselectionner des valeurs coherentes
         if 0x30 <= device_id <= 0x3F:  # LIN
             self.data_type_combo.setCurrentIndex(0)  # LIN
-            self.message_combo.setCurrentIndex(0)  # LOGGING_STREAM par défaut
+            self.message_combo.setCurrentIndex(0)  # LOGGING_STREAM par defaut
         elif 0x40 <= device_id <= 0x4F:  # CAN
             self.data_type_combo.setCurrentIndex(0)  # CAN
-            self.message_combo.setCurrentIndex(0)  # LOGGING_STREAM par défaut
+            self.message_combo.setCurrentIndex(0)  # LOGGING_STREAM par defaut
         elif device_id in [0x80, 0x91]:  # Ethernet
             self.data_type_combo.setCurrentIndex(0)  # Ethernet
-            # Pour Ethernet, éviter REPLAY_DATA
+            # Pour Ethernet, eviter REPLAY_DATA
             index = self.message_combo.findData(MessageType.LOGGING_STREAM)
             if index >= 0:
                 self.message_combo.setCurrentIndex(index)
@@ -797,7 +908,7 @@ class TECMPInterface(QMainWindow):
         elif 0x50 <= device_id <= 0x5F or 0x70 <= device_id <= 0x7F:
             self.data_type_combo.addItem(f"0x{DataType.FLEXRAY:04X} - FlexRay", DataType.FLEXRAY)
         elif device_id == 0x80 or device_id == 0x91:
-            self.data_type_combo.addItem(f"0x{DataType.ETHERNET_EXT:04X} - Ethernet", DataType.ETHERNET_EXT)
+            self.data_type_combo.addItem(f"0x{DataType.ETHERNET_II:04X} - Ethernet II", DataType.ETHERNET_II)
         else:
             for dt in DataType:
                 self.data_type_combo.addItem(f"0x{dt:04X} - {get_data_type_name(dt)}", dt)
@@ -842,12 +953,12 @@ class TECMPInterface(QMainWindow):
         current_msg_type = self.message_combo.currentData()
         self.message_combo.clear()
         
-        # Règles de cohérence data_type -> message_type
+        # Regles de coherence data_type -> message_type
         if data_type == DataType.LOG_MESSAGE:
             # Log messages pour Control/Status uniquement
             allowed_types = [MessageType.CONTROL, MessageType.STATUS_DEVICE, 
                            MessageType.STATUS_BUS, MessageType.STATUS_CONFIG]
-        elif data_type in [DataType.ETHERNET, DataType.ETHERNET_EXT]:
+        elif data_type in [DataType.ETHERNET_II, DataType.ETHERNET_II, DataType.ETHERNET_II]:
             # Ethernet ne supporte pas REPLAY_DATA
             allowed_types = [MessageType.LOGGING_STREAM, MessageType.CONTROL,
                            MessageType.STATUS_DEVICE, MessageType.STATUS_BUS, 
@@ -856,12 +967,12 @@ class TECMPInterface(QMainWindow):
             # CAN/LIN/FlexRay supportent tout sauf status (sauf si log message)
             allowed_types = [MessageType.LOGGING_STREAM, MessageType.REPLAY_DATA]
         
-        # Ajouter les types autorisés
+        # Ajouter les types autorises
         for msg_type in MessageType:
             if msg_type in allowed_types:
                 self.message_combo.addItem(f"0x{msg_type:02X} - {msg_type.name}", msg_type)
         
-        # Restaurer la sélection si toujours valide
+        # Restaurer la selection si toujours valide
         if current_msg_type in allowed_types:
             index = self.message_combo.findData(current_msg_type)
             if index >= 0:
@@ -882,7 +993,8 @@ class TECMPInterface(QMainWindow):
             DataType.CAN_FD: ["0x00001200 - CAN-FD Channel 1", "0x00001300 - CAN-FD Channel 2"],
             DataType.LIN: ["0x00002000 - LIN Channel 1", "0x00002100 - LIN Channel 2"],
             DataType.FLEXRAY: ["0x00003000 - FlexRay A", "0x00003100 - FlexRay B"],
-            DataType.ETHERNET_EXT: ["0x0070128a - Ethernet Capture", "0x00004000 - Ethernet 1"]
+            DataType.ETHERNET_II: ["0x0070128a - Ethernet Capture", "0x00004000 - Ethernet 1"],
+            DataType.ETHERNET_II: ["0x0070128a - Ethernet Capture", "0x00004000 - Ethernet 1"]
         }
         
         items = suggestions.get(data_type, ["0x00000000 - Default"])
@@ -892,7 +1004,7 @@ class TECMPInterface(QMainWindow):
         self.current_config = {
             'device_id': self.device_combo.currentData() or 0x40,
             'message_type': self.message_combo.currentData() or MessageType.LOGGING_STREAM,
-            'data_type': self.data_type_combo.currentData() or DataType.ETHERNET_EXT,
+            'data_type': self.data_type_combo.currentData() or DataType.ETHERNET_II,
             'interface_id': self.extract_interface_id()
         }
         
@@ -951,7 +1063,7 @@ class TECMPInterface(QMainWindow):
         info += f"- Size per segment: {MAX_UNSEGMENTED_SIZE} bytes\n"
         info += f"- Last segment: {total_size % MAX_UNSEGMENTED_SIZE or MAX_UNSEGMENTED_SIZE} bytes"
         
-        # Mettre à jour le status
+        # Mettre a jour le status
         self.status_main.setText(f"Segmentation: {num_segments} segments")
         self.validation_status.setToolTip(info)
                 
@@ -1026,7 +1138,7 @@ class TECMPInterface(QMainWindow):
         if packet:
             packet.ensure_coherence()
             
-            # Vérifier si segmentation nécessaire
+            # Verifier si segmentation necessaire
             if packet.needs_segmentation():
                 segments = packet.segment()
                 
@@ -1042,7 +1154,7 @@ class TECMPInterface(QMainWindow):
                 
                 QMessageBox.information(self, "Automatic Segmentation", msg)
                 
-                # Ajouter tous les segments à la liste
+                # Ajouter tous les segments a la liste
                 for i, seg in enumerate(segments):
                     self.generated_packets.append(seg)
                     item_text = f"#{len(self.generated_packets)} - Segment {i+1}/{len(segments)} - {seg.size} bytes"

@@ -27,7 +27,12 @@ from typing import Dict, List, Any, Optional, Callable, Set
 # Direct imports - no dynamic loading
 from .coherence_engine import TECMPCoherenceEngine
 from .tecmp_engine import TECMPEngine, create_professional_engine
-from .constants import MessageType, ControlMessageID, validate_control_message_id
+from .constants import (
+    MessageType, 
+    ControlMessageID, 
+    validate_control_message_id,
+    SPECIAL_INTERFACE_IDS
+)
 
 # ============================================================================
 # METHOD DEFINITIONS
@@ -176,22 +181,26 @@ class CoherenceMethods:
             # Validate using centralized function
             is_valid = validate_control_message_id(control_msg_id)
             
-            # Determine category
+            # Determine category using official names from TECMP v1.7 Table 26
             if control_msg_id == ControlMessageID.LOGGER_READY:
                 category = 'system'
                 name = 'Logger Ready'
             elif control_msg_id == ControlMessageID.CAN_REPLAY_FILL_LEVEL:
                 category = 'system'
-                name = 'CAN Replay Fill Level'
+                name = 'CAN Replay fill level'
             elif control_msg_id == ControlMessageID.FLEXRAY_POC_STATE:
                 category = 'system'
                 name = 'FlexRay POC State'
             elif 0x00 <= control_msg_id <= 0xDF:
                 category = 'user_configurable'
-                name = f'User Defined (0x{control_msg_id:02X})'
+                # Check for common user-configurable messages
+                if control_msg_id in range(0x00, 0xE0):
+                    name = f'User configurable (0x{control_msg_id:02X})'
+                else:
+                    name = f'User Defined (0x{control_msg_id:02X})'
             elif 0xE2 <= control_msg_id <= 0xFF:
                 category = 'reserved'
-                name = f'Reserved (0x{control_msg_id:02X})'
+                name = f'Reserved for future use (0x{control_msg_id:02X})'
             else:
                 category = 'unknown'
                 name = f'Unknown (0x{control_msg_id:02X})'
@@ -306,7 +315,7 @@ class ProfessionalMethods:
             payload = self._tecmp_engine.hardware_monitor.generate_status_device_payload()
             
             # Update packet if Status Device message
-            if hasattr(self, 'message_type') and self.message_type == 0x01:
+            if hasattr(self, 'message_type') and self.message_type == MessageType.STATUS_DEVICE:
                 self.payload = payload
                 self.length = len(payload)
                 
@@ -422,9 +431,8 @@ class ProfessionalMethods:
         self.payload = control_payload
         self.length = len(control_payload)
         
-        # Set appropriate interface ID for control messages
-        from .constants import SPECIAL_INTERFACE_IDS
-        self.interface_id = SPECIAL_INTERFACE_IDS.get('CONTROL', 0x000FFF03)
+        # Set appropriate interface ID for control messages (Table 28)
+        self.interface_id = SPECIAL_INTERFACE_IDS['CONTROL']
         
         logging.info(f"Injected Control Message ID 0x{control_id:04X}")
         return True
