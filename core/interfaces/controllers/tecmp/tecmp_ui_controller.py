@@ -945,13 +945,13 @@ class TECMPControllerBase:
             self._set_state(ControllerState.UNINITIALIZED)
 
 # ============================================================================
-# QT UI CONTROLLER
+# QT UI CONTROLLER - FIXED VERSION WITH QTIMER PROTECTION
 # ============================================================================
 
 if QT_AVAILABLE:
     class TECMPUIController(TECMPControllerBase, QObject):
         """
-        Qt-enabled TECMP UI Controller
+        Qt-enabled TECMP UI Controller - FIXED VERSION
         
         Inherits from base controller and adds Qt signal/slot functionality
         """
@@ -974,6 +974,10 @@ if QT_AVAILABLE:
                 parent: Parent widget
                 config: Controller configuration
             """
+            # FIXED: Add shutdown protection
+            self._is_shutdown = False
+            self._shutdown_lock = threading.Lock()
+            
             # Initialize QObject first
             QObject.__init__(self, parent)
             
@@ -984,36 +988,124 @@ if QT_AVAILABLE:
             self._update_timer = QTimer(self)
             self._update_timer.timeout.connect(self._update_ui_state)
             
-            # Connect base callbacks to Qt signals
-            self.register_callback('state_changed', lambda state: self.state_changed.emit(state))
-            self.register_callback('packet_created', lambda packet: self.packet_created.emit(packet))
-            self.register_callback('validation_complete', self._emit_validation_signal)
-            self.register_callback('error_handler', lambda t, m: self.error_occurred.emit(t, m))
-            self.register_callback('progress_handler', lambda p, m: self.progress_update.emit(p, m))
-            self.register_callback('notification', lambda t, m: self.notification.emit(t, m))
+            # FIXED: Connect base callbacks to Qt signals with protection
+            self.register_callback('state_changed', self._safe_emit_state_changed)
+            self.register_callback('packet_created', self._safe_emit_packet_created)
+            self.register_callback('validation_complete', self._safe_emit_validation_signal)
+            self.register_callback('error_handler', self._safe_emit_error)
+            self.register_callback('progress_handler', self._safe_emit_progress)
+            self.register_callback('notification', self._safe_emit_notification)
             
             # Start UI timer if configured
             if self.config.auto_refresh_ms > 0:
                 self._update_timer.start(self.config.auto_refresh_ms)
         
-        def _emit_validation_signal(self, packet: TECMPPacket, report: Dict[str, Any]) -> None:
-            """Emit validation signal"""
-            self.packet_validated.emit(packet, report['is_valid'])
+        # FIXED: Protected signal emission methods
+        def _safe_emit_state_changed(self, state: str) -> None:
+            """Safely emit state changed signal"""
+            with self._shutdown_lock:
+                if not self._is_shutdown:
+                    try:
+                        self.state_changed.emit(state)
+                    except RuntimeError:
+                        # Object already deleted
+                        pass
+        
+        def _safe_emit_packet_created(self, packet: TECMPPacket) -> None:
+            """Safely emit packet created signal"""
+            with self._shutdown_lock:
+                if not self._is_shutdown:
+                    try:
+                        self.packet_created.emit(packet)
+                    except RuntimeError:
+                        pass
+        
+        def _safe_emit_validation_signal(self, packet: TECMPPacket, report: Dict[str, Any]) -> None:
+            """Safely emit validation signal"""
+            with self._shutdown_lock:
+                if not self._is_shutdown:
+                    try:
+                        self.packet_validated.emit(packet, report['is_valid'])
+                    except RuntimeError:
+                        pass
+        
+        def _safe_emit_error(self, error_type: str, message: str) -> None:
+            """Safely emit error signal"""
+            with self._shutdown_lock:
+                if not self._is_shutdown:
+                    try:
+                        self.error_occurred.emit(error_type, message)
+                    except RuntimeError:
+                        pass
+        
+        def _safe_emit_progress(self, progress: int, message: str) -> None:
+            """Safely emit progress signal"""
+            with self._shutdown_lock:
+                if not self._is_shutdown:
+                    try:
+                        self.progress_update.emit(progress, message)
+                    except RuntimeError:
+                        pass
+        
+        def _safe_emit_notification(self, notification_type: str, message: str) -> None:
+            """Safely emit notification signal"""
+            with self._shutdown_lock:
+                if not self._is_shutdown:
+                    try:
+                        self.notification.emit(notification_type, message)
+                    except RuntimeError:
+                        pass
         
         @pyqtSlot()
         def _update_ui_state(self) -> None:
             """Update UI state periodically"""
-            try:
-                # Update statistics
-                stats = self.get_statistics()
-                self.statistics_updated.emit(stats)
+            with self._shutdown_lock:
+                if self._is_shutdown:
+                    return
                 
-                # Check for errors
-                if self._state == ControllerState.ERROR:
-                    self.error_occurred.emit("STATE_ERROR", "Controller in error state")
+                try:
+                    # Update statistics
+                    stats = self.get_statistics()
+                    self.statistics_updated.emit(stats)
+                    
+                    # Check for errors
+                    if self._state == ControllerState.ERROR:
+                        self.error_occurred.emit("STATE_ERROR", "Controller in error state")
+                    
+                except Exception as e:
+                    self.logger.error(f"UI update error: {e}")
+        
+        # FIXED: Override shutdown method with enhanced QTimer protection
+        def shutdown(self) -> None:
+            """Shutdown controller gracefully with Qt cleanup"""
+            with self._shutdown_lock:
+                if self._is_shutdown:
+                    return  # Already shutdown
+                
+                self._is_shutdown = True
+            
+            try:
+                # Stop Qt timer first - with enhanced protection
+                if hasattr(self, '_update_timer'):
+                    try:
+                        # Check if timer still exists and is valid
+                        if self._update_timer is not None:
+                            # Try to stop the timer
+                            self._update_timer.stop()
+                    except RuntimeError as e:
+                        # Timer already deleted by Qt
+                        self.logger.debug(f"Timer already deleted: {e}")
+                    except Exception as e:
+                        # Any other error
+                        self.logger.debug(f"Timer cleanup error: {e}")
+                
+                # Call base shutdown
+                super().shutdown()
+                
+                self.logger.info("TECMP UI Controller shutdown complete")
                 
             except Exception as e:
-                self.logger.error(f"UI update error: {e}")
+                self.logger.error(f"UI shutdown error: {e}", exc_info=True)
         
         # Qt slot decorators for base methods
         encapsulate_packet = pyqtSlot(dict)(TECMPControllerBase.encapsulate_packet)
@@ -1029,7 +1121,6 @@ if QT_AVAILABLE:
         get_statistics = pyqtSlot()(TECMPControllerBase.get_statistics)
         get_engine_status = pyqtSlot()(TECMPControllerBase.get_engine_status)
         get_state = pyqtSlot()(TECMPControllerBase.get_state)
-        shutdown = pyqtSlot()(TECMPControllerBase.shutdown)
         
 else:
     # If Qt is not available, use base controller

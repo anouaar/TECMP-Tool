@@ -231,303 +231,315 @@ class TECMPDesignSystem(QObject):
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.transparent)
         
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter = QPainter()
         
-        palette = self.get_current_palette()
-        color = QColor(palette.primary)
+        # CRITICAL: Properly manage painter lifecycle
+        if not painter.begin(pixmap):
+            # If painter fails to begin, return empty icon
+            return QIcon()
         
-        # Draw specific icons with better details
-        if name in ['new', 'add', 'add_protocol', 'add_tecmp']:
-            # Plus sign with circle background
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(2, 2, 20, 20)
-            painter.setPen(QPen(QColor(palette.on_primary), 2))
-            painter.drawLine(12, 7, 12, 17)
-            painter.drawLine(7, 12, 17, 12)
+        try:
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
             
-        elif name in ['open', 'folder']:
-            # Folder icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Folder back
-            painter.drawRect(4, 8, 16, 11)
-            # Folder tab
-            path = QPainterPath()
-            path.moveTo(4, 8)
-            path.lineTo(8, 4)
-            path.lineTo(12, 4)
-            path.lineTo(14, 8)
-            painter.drawPath(path)
+            palette = self.get_current_palette()
+            color = QColor(palette.primary)
             
-        elif name == 'save':
-            # Floppy disk icon
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            # Disk body
-            painter.drawRoundedRect(4, 4, 16, 16, 2, 2)
-            # Metal slider
-            painter.setBrush(QBrush(palette.surface))
-            painter.drawRect(6, 4, 10, 6)
-            painter.drawRect(14, 6, 3, 2)
-            # Label area
-            painter.setBrush(QBrush(palette.surface))
-            painter.drawRect(7, 12, 10, 6)
+            # Draw specific icons with better details
+            if name in ['new', 'add', 'add_protocol', 'add_tecmp']:
+                # Plus sign with circle background
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(2, 2, 20, 20)
+                painter.setPen(QPen(QColor(palette.on_primary), 2))
+                painter.drawLine(12, 7, 12, 17)
+                painter.drawLine(7, 12, 17, 12)
+                
+            elif name in ['open', 'folder']:
+                # Folder icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Folder back
+                painter.drawRect(4, 8, 16, 11)
+                # Folder tab
+                path = QPainterPath()
+                path.moveTo(4, 8)
+                path.lineTo(8, 4)
+                path.lineTo(12, 4)
+                path.lineTo(14, 8)
+                painter.drawPath(path)
+                
+            elif name == 'save':
+                # Floppy disk icon
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                # Disk body
+                painter.drawRoundedRect(4, 4, 16, 16, 2, 2)
+                # Metal slider - FIXED: Use QColor for QBrush
+                painter.setBrush(QBrush(QColor(palette.surface)))
+                painter.drawRect(6, 4, 10, 6)
+                painter.drawRect(14, 6, 3, 2)
+                # Label area - FIXED: Use QColor for QBrush
+                painter.setBrush(QBrush(QColor(palette.surface)))
+                painter.drawRect(7, 12, 10, 6)
+                
+            elif name == 'trace':
+                # Wave/trace icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                path = QPainterPath()
+                path.moveTo(2, 12)
+                path.cubicTo(6, 4, 10, 20, 14, 12)
+                path.cubicTo(18, 4, 22, 12, 22, 12)
+                painter.drawPath(path)
+                
+            elif name == 'export':
+                # Export arrow icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Arrow up
+                painter.drawLine(12, 16, 12, 4)
+                painter.drawLine(12, 4, 8, 8)
+                painter.drawLine(12, 4, 16, 8)
+                # Box
+                painter.drawLine(4, 16, 4, 20)
+                painter.drawLine(20, 16, 20, 20)
+                painter.drawLine(4, 20, 20, 20)
+                
+            elif name == 'exit':
+                # Exit door icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Door frame
+                painter.drawRect(8, 3, 12, 18)
+                # Door
+                painter.drawLine(10, 3, 10, 21)
+                # Arrow pointing out
+                painter.drawLine(2, 12, 12, 12)
+                painter.drawLine(12, 12, 9, 9)
+                painter.drawLine(12, 12, 9, 15)
+                
+            elif name == 'preferences':
+                # Gear icon
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                # Center circle
+                painter.drawEllipse(8, 8, 8, 8)
+                # Teeth
+                for angle in range(0, 360, 45):
+                    painter.save()
+                    painter.translate(12, 12)
+                    painter.rotate(angle)
+                    painter.drawRect(-2, -11, 4, 4)
+                    painter.restore()
+                # Center hole - FIXED: Use QColor for QBrush
+                painter.setBrush(QBrush(QColor(palette.surface)))
+                painter.drawEllipse(10, 10, 4, 4)
+                
+            elif name == 'zoom':
+                # Magnifying glass icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Glass circle
+                painter.drawEllipse(3, 3, 14, 14)
+                # Handle
+                painter.setPen(QPen(color, 3))
+                painter.drawLine(15, 15, 20, 20)
+                # Plus inside
+                painter.setPen(QPen(color, 1.5))
+                painter.drawLine(10, 7, 10, 13)
+                painter.drawLine(7, 10, 13, 10)
+                
+            elif name == 'dark_mode':
+                # Moon icon
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                path = QPainterPath()
+                path.addEllipse(6, 3, 15, 15)
+                path2 = QPainterPath()
+                path2.addEllipse(11, 1, 13, 13)
+                painter.drawPath(path.subtracted(path2))
+                
+            elif name == 'hex_view':
+                # Hex/grid icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Draw hexagon
+                hexPoints = []
+                cx, cy = 12, 12
+                for i in range(6):
+                    angle = i * 60 * 3.14159 / 180
+                    x = cx + 8 * math.cos(angle)
+                    y = cy + 8 * math.sin(angle)
+                    hexPoints.append(QPoint(int(x), int(y)))
+                painter.drawPolygon(QPolygon(hexPoints))
+                # Center dot
+                painter.setBrush(QBrush(color))
+                painter.drawEllipse(10, 10, 4, 4)
+                
+            elif name == 'recent':
+                # Clock icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                painter.drawEllipse(3, 3, 18, 18)
+                # Clock hands
+                painter.setPen(QPen(color, 2))
+                painter.drawLine(12, 12, 12, 7)
+                painter.drawLine(12, 12, 16, 14)
+                # Hour marks
+                painter.setPen(QPen(color, 1))
+                for hour in [0, 3, 6, 9]:
+                    angle = hour * 30 * 3.14159 / 180
+                    x1 = 12 + 7 * math.cos(angle - 3.14159/2)
+                    y1 = 12 + 7 * math.sin(angle - 3.14159/2)
+                    x2 = 12 + 9 * math.cos(angle - 3.14159/2)
+                    y2 = 12 + 9 * math.sin(angle - 3.14159/2)
+                    painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+                
+            elif name in ['template', 'templates']:
+                # Document template icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Document outline with folded corner
+                path = QPainterPath()
+                path.moveTo(5, 3)
+                path.lineTo(14, 3)
+                path.lineTo(19, 8)
+                path.lineTo(19, 21)
+                path.lineTo(5, 21)
+                path.closeSubpath()
+                painter.drawPath(path)
+                # Folded corner
+                painter.drawLine(14, 3, 14, 8)
+                painter.drawLine(14, 8, 19, 8)
+                # Text lines
+                painter.setPen(QPen(color, 1))
+                painter.drawLine(7, 11, 17, 11)
+                painter.drawLine(7, 14, 17, 14)
+                painter.drawLine(7, 17, 14, 17)
+                
+            elif name == 'performance':
+                # Chart/graph icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Axes
+                painter.drawLine(3, 19, 21, 19)
+                painter.drawLine(3, 19, 3, 3)
+                # Bars
+                painter.setBrush(QBrush(color))
+                painter.drawRect(6, 15, 3, 4)
+                painter.drawRect(11, 11, 3, 8)
+                painter.drawRect(16, 7, 3, 12)
+                
+            elif name == 'statistics':
+                # Pie chart icon
+                painter.setBrush(QBrush(color))
+                painter.setPen(QPen(color, 1))
+                # Full circle
+                painter.drawEllipse(3, 3, 18, 18)
+                # Pie slices - FIXED: Use QColor for QPen
+                painter.setPen(QPen(QColor(palette.surface), 2))
+                painter.drawLine(12, 12, 21, 12)
+                painter.drawLine(12, 12, 12, 3)
+                painter.drawLine(12, 12, 5, 18)
+                
+            elif name == 'status':
+                # Dashboard icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                # Semi-circle gauge
+                painter.drawArc(3, 6, 18, 18, 0, 180*16)
+                # Ticks
+                for angle in [-45, 0, 45]:
+                    rad = angle * 3.14159 / 180
+                    x1 = 12 + 7 * math.cos(rad - 3.14159/2)
+                    y1 = 15 + 7 * math.sin(rad - 3.14159/2)
+                    x2 = 12 + 9 * math.cos(rad - 3.14159/2)
+                    y2 = 15 + 9 * math.sin(rad - 3.14159/2)
+                    painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+                # Needle - FIXED: Use QColor for QPen
+                painter.setPen(QPen(QColor(palette.error), 2))
+                painter.drawLine(12, 15, 7, 10)
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(10, 13, 4, 4)
+                
+            elif name in ['remove', 'delete', 'clear_protocols', 'remove_tecmp']:
+                # Minus/remove icon with circle
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(2, 2, 20, 20)
+                painter.setPen(QPen(QColor(palette.on_primary), 2))
+                painter.drawLine(7, 12, 17, 12)
+                
+            elif name == 'undo':
+                # Undo arrow icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                path = QPainterPath()
+                path.moveTo(8, 12)
+                path.arcTo(8, 4, 12, 12, 90, 180)
+                painter.drawPath(path)
+                # Arrow head
+                painter.drawLine(8, 12, 11, 9)
+                painter.drawLine(8, 12, 11, 15)
+                
+            elif name == 'redo':
+                # Redo arrow icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 2))
+                path = QPainterPath()
+                path.moveTo(16, 12)
+                path.arcTo(4, 4, 12, 12, 90, -180)
+                painter.drawPath(path)
+                # Arrow head
+                painter.drawLine(16, 12, 13, 9)
+                painter.drawLine(16, 12, 13, 15)
+                
+            elif name in ['generate', 'build']:
+                # Play/generate icon
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                points = [QPoint(8, 5), QPoint(18, 12), QPoint(8, 19)]
+                painter.drawPolygon(QPolygon(points))
+                
+            elif name in ['validate', 'check']:
+                # Checkmark icon
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 3))
+                painter.drawLine(6, 13, 10, 17)
+                painter.drawLine(10, 17, 18, 7)
+                
+            elif name in ['help', 'info']:
+                # Info/help icon
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(2, 2, 20, 20)
+                painter.setPen(QPen(QColor(palette.on_primary), 2))
+                painter.setBrush(QBrush(QColor(palette.on_primary)))
+                # Question mark
+                painter.drawEllipse(11, 6, 2, 2)
+                painter.setPen(QPen(QColor(palette.on_primary), 2))
+                painter.drawLine(12, 10, 12, 16)
+                
+            else:
+                # Default icon - filled circle
+                painter.setBrush(QBrush(color))
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(4, 4, 16, 16)
+                # Add first letter
+                if name:
+                    painter.setPen(QColor(palette.on_primary))
+                    painter.setFont(QFont(self.get_typography('font_family_primary'), 10, QFont.Bold))
+                    painter.drawText(QRect(4, 4, 16, 16), Qt.AlignCenter, name[0].upper())
             
-        elif name == 'trace':
-            # Wave/trace icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            path = QPainterPath()
-            path.moveTo(2, 12)
-            path.cubicTo(6, 4, 10, 20, 14, 12)
-            path.cubicTo(18, 4, 22, 12, 22, 12)
-            painter.drawPath(path)
-            
-        elif name == 'export':
-            # Export arrow icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Arrow up
-            painter.drawLine(12, 16, 12, 4)
-            painter.drawLine(12, 4, 8, 8)
-            painter.drawLine(12, 4, 16, 8)
-            # Box
-            painter.drawLine(4, 16, 4, 20)
-            painter.drawLine(20, 16, 20, 20)
-            painter.drawLine(4, 20, 20, 20)
-            
-        elif name == 'exit':
-            # Exit door icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Door frame
-            painter.drawRect(8, 3, 12, 18)
-            # Door
-            painter.drawLine(10, 3, 10, 21)
-            # Arrow pointing out
-            painter.drawLine(2, 12, 12, 12)
-            painter.drawLine(12, 12, 9, 9)
-            painter.drawLine(12, 12, 9, 15)
-            
-        elif name == 'preferences':
-            # Gear icon
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            # Center circle
-            painter.drawEllipse(8, 8, 8, 8)
-            # Teeth
-            for angle in range(0, 360, 45):
-                painter.save()
-                painter.translate(12, 12)
-                painter.rotate(angle)
-                painter.drawRect(-2, -11, 4, 4)
-                painter.restore()
-            # Center hole
-            painter.setBrush(QBrush(palette.surface))
-            painter.drawEllipse(10, 10, 4, 4)
-            
-        elif name == 'zoom':
-            # Magnifying glass icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Glass circle
-            painter.drawEllipse(3, 3, 14, 14)
-            # Handle
-            painter.setPen(QPen(color, 3))
-            painter.drawLine(15, 15, 20, 20)
-            # Plus inside
-            painter.setPen(QPen(color, 1.5))
-            painter.drawLine(10, 7, 10, 13)
-            painter.drawLine(7, 10, 13, 10)
-            
-        elif name == 'dark_mode':
-            # Moon icon
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            path = QPainterPath()
-            path.addEllipse(6, 3, 15, 15)
-            path2 = QPainterPath()
-            path2.addEllipse(11, 1, 13, 13)
-            painter.drawPath(path.subtracted(path2))
-            
-        elif name == 'hex_view':
-            # Hex/grid icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Draw hexagon
-            hexPoints = []
-            cx, cy = 12, 12
-            for i in range(6):
-                angle = i * 60 * 3.14159 / 180
-                x = cx + 8 * math.cos(angle)
-                y = cy + 8 * math.sin(angle)
-                hexPoints.append(QPoint(int(x), int(y)))
-            painter.drawPolygon(QPolygon(hexPoints))
-            # Center dot
-            painter.setBrush(QBrush(color))
-            painter.drawEllipse(10, 10, 4, 4)
-            
-        elif name == 'recent':
-            # Clock icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            painter.drawEllipse(3, 3, 18, 18)
-            # Clock hands
-            painter.setPen(QPen(color, 2))
-            painter.drawLine(12, 12, 12, 7)
-            painter.drawLine(12, 12, 16, 14)
-            # Hour marks
-            painter.setPen(QPen(color, 1))
-            for hour in [0, 3, 6, 9]:
-                angle = hour * 30 * 3.14159 / 180
-                x1 = 12 + 7 * math.cos(angle - 3.14159/2)
-                y1 = 12 + 7 * math.sin(angle - 3.14159/2)
-                x2 = 12 + 9 * math.cos(angle - 3.14159/2)
-                y2 = 12 + 9 * math.sin(angle - 3.14159/2)
-                painter.drawLine(int(x1), int(y1), int(x2), int(y2))
-            
-        elif name in ['template', 'templates']:
-            # Document template icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Document outline with folded corner
-            path = QPainterPath()
-            path.moveTo(5, 3)
-            path.lineTo(14, 3)
-            path.lineTo(19, 8)
-            path.lineTo(19, 21)
-            path.lineTo(5, 21)
-            path.closeSubpath()
-            painter.drawPath(path)
-            # Folded corner
-            painter.drawLine(14, 3, 14, 8)
-            painter.drawLine(14, 8, 19, 8)
-            # Text lines
-            painter.setPen(QPen(color, 1))
-            painter.drawLine(7, 11, 17, 11)
-            painter.drawLine(7, 14, 17, 14)
-            painter.drawLine(7, 17, 14, 17)
-            
-        elif name == 'performance':
-            # Chart/graph icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Axes
-            painter.drawLine(3, 19, 21, 19)
-            painter.drawLine(3, 19, 3, 3)
-            # Bars
-            painter.setBrush(QBrush(color))
-            painter.drawRect(6, 15, 3, 4)
-            painter.drawRect(11, 11, 3, 8)
-            painter.drawRect(16, 7, 3, 12)
-            
-        elif name == 'statistics':
-            # Pie chart icon
-            painter.setBrush(QBrush(color))
-            painter.setPen(QPen(color, 1))
-            # Full circle
-            painter.drawEllipse(3, 3, 18, 18)
-            # Pie slices
-            painter.setPen(QPen(palette.surface, 2))
-            painter.drawLine(12, 12, 21, 12)
-            painter.drawLine(12, 12, 12, 3)
-            painter.drawLine(12, 12, 5, 18)
-            
-        elif name == 'status':
-            # Dashboard icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            # Semi-circle gauge
-            painter.drawArc(3, 6, 18, 18, 0, 180*16)
-            # Ticks
-            for angle in [-45, 0, 45]:
-                rad = angle * 3.14159 / 180
-                x1 = 12 + 7 * math.cos(rad - 3.14159/2)
-                y1 = 15 + 7 * math.sin(rad - 3.14159/2)
-                x2 = 12 + 9 * math.cos(rad - 3.14159/2)
-                y2 = 15 + 9 * math.sin(rad - 3.14159/2)
-                painter.drawLine(int(x1), int(y1), int(x2), int(y2))
-            # Needle
-            painter.setPen(QPen(QColor(palette.error), 2))
-            painter.drawLine(12, 15, 7, 10)
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(10, 13, 4, 4)
-            
-        elif name in ['remove', 'delete', 'clear_protocols', 'remove_tecmp']:
-            # Minus/remove icon with circle
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(2, 2, 20, 20)
-            painter.setPen(QPen(QColor(palette.on_primary), 2))
-            painter.drawLine(7, 12, 17, 12)
-            
-        elif name == 'undo':
-            # Undo arrow icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            path = QPainterPath()
-            path.moveTo(8, 12)
-            path.arcTo(8, 4, 12, 12, 90, 180)
-            painter.drawPath(path)
-            # Arrow head
-            painter.drawLine(8, 12, 11, 9)
-            painter.drawLine(8, 12, 11, 15)
-            
-        elif name == 'redo':
-            # Redo arrow icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 2))
-            path = QPainterPath()
-            path.moveTo(16, 12)
-            path.arcTo(4, 4, 12, 12, 90, -180)
-            painter.drawPath(path)
-            # Arrow head
-            painter.drawLine(16, 12, 13, 9)
-            painter.drawLine(16, 12, 13, 15)
-            
-        elif name in ['generate', 'build']:
-            # Play/generate icon
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            points = [QPoint(8, 5), QPoint(18, 12), QPoint(8, 19)]
-            painter.drawPolygon(QPolygon(points))
-            
-        elif name in ['validate', 'check']:
-            # Checkmark icon
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(color, 3))
-            painter.drawLine(6, 13, 10, 17)
-            painter.drawLine(10, 17, 18, 7)
-            
-        elif name in ['help', 'info']:
-            # Info/help icon
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(2, 2, 20, 20)
-            painter.setPen(QPen(QColor(palette.on_primary), 2))
-            painter.setBrush(QBrush(QColor(palette.on_primary)))
-            # Question mark
-            painter.drawEllipse(11, 6, 2, 2)
-            painter.setPen(QPen(QColor(palette.on_primary), 2))
-            painter.drawLine(12, 10, 12, 16)
-            
-        else:
-            # Default icon - filled circle
-            painter.setBrush(QBrush(color))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(4, 4, 16, 16)
-            # Add first letter
-            if name:
-                painter.setPen(QColor(palette.on_primary))
-                painter.setFont(QFont(self.get_typography('font_family_primary'), 10, QFont.Bold))
-                painter.drawText(QRect(4, 4, 16, 16), Qt.AlignCenter, name[0].upper())
+        finally:
+            # CRITICAL: Always end the painter
+            painter.end()
         
-        painter.end()
-        return QIcon(pixmap)
+        # Create icon from pixmap only after painter is ended
+        icon = QIcon(pixmap)
+        return icon
     
     # === SIMPLE STYLE GENERATION ===
     

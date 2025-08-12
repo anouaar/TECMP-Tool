@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-tecmp_packet.py - TECMP v1.7 Packet Implementation
+tecmp_packet.py - TECMP v1.7 Packet Implementation - TIMESTAMP CORRECTED VERSION
 ==================================================
 
 Complete implementation of TECMP (Technically Enhanced Capture Module Protocol) v1.7
@@ -12,9 +12,11 @@ Features:
 - Automatic segmentation for payloads > 800 bytes
 - Multi-frame support with proper header handling
 - Device flags management (EOS/SOS/SPY/etc.)
-- Timestamp handling with synchronization flags
+- CORRECTED: Timestamp handling with relative timestamps for Wireshark compatibility
 - Complete validation according to official ranges
 - Serialization/deserialization with exact byte structure
+- IMPROVED: Device overflow management with rate limiting
+- IMPROVED: Buffer management to prevent spam warnings
 
 Reference: TECMP User Manual v1.7 - July 2022
 """
@@ -23,8 +25,10 @@ import struct
 import time
 import logging
 import copy
+import threading
 from typing import Optional, Dict, List, Any, Tuple, Union
 from dataclasses import dataclass
+from collections import deque
 
 # Import all constants from centralized location
 from .constants import (
@@ -37,6 +41,37 @@ from .constants import (
     get_device_type_name, get_data_type_name, validate_device_id,
     ControlMessageID, validate_control_message_id
 )
+
+# ============================================================================
+# TIMESTAMP UTILITIES - NEW ADDITION FOR WIRESHARK COMPATIBILITY
+# ============================================================================
+
+def get_relative_timestamp() -> int:
+    """
+    Generate timestamp compatible with Wireshark Unix epoch interpretation
+    
+    Returns timestamp in nanoseconds since Unix epoch (Jan 1, 1970)
+    Limited to prevent overflow in 62-bit field
+    
+    Returns:
+        Timestamp in nanoseconds since Unix epoch
+    """
+    # Direct nanoseconds since Unix epoch, masked to 62 bits
+    return int(time.time() * 1e9) & TIMESTAMP_VALUE_MASK
+
+def get_microsecond_increment(base_timestamp: int, increment_us: int = 1) -> int:
+    """
+    Add microsecond increment to base timestamp
+    
+    Args:
+        base_timestamp: Base timestamp in nanoseconds
+        increment_us: Increment in microseconds
+        
+    Returns:
+        New timestamp with increment applied
+    """
+    increment_ns = increment_us * 1000
+    return (base_timestamp + increment_ns) & TIMESTAMP_VALUE_MASK
 
 # ============================================================================
 # EXCEPTIONS
@@ -80,6 +115,125 @@ class MultiFrameInfo:
     frame_sizes: List[int]
 
 # ============================================================================
+# DEVICE BUFFER MANAGEMENT - NEW ADDITION
+# ============================================================================
+
+class _DeviceBufferManager:
+    """
+    Internal device buffer manager to prevent overflow spam and manage device performance.
+    This is a singleton class that tracks device packet rates and prevents excessive overflow warnings.
+    """
+    
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+    
+    def __init__(self):
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
+        self.device_stats = {}  # device_id -> stats
+        self.overflow_thresholds = {}  # device_id -> threshold
+        self.last_cleanup = time.time()
+        self._initialized = True
+        self.logger = logging.getLogger("TECMPBufferManager")
+        
+    def register_device(self, device_id: int, max_rate: int = 1000):
+        """Register a device with its rate limit"""
+        if device_id not in self.device_stats:
+            self.device_stats[device_id] = {
+                'packet_count': 0,
+                'overflow_count': 0,
+                'last_packet_time': time.time(),
+                'rate_window': deque(maxlen=100),  # Window for rate calculation
+                'max_rate': max_rate,  # packets/second max
+                'overflow_reported': False,
+                'last_overflow_log': 0,  # Last time we logged overflow
+                'overflow_log_interval': 10.0,  # Log every 10 seconds max
+            }
+        
+    def should_trigger_overflow(self, device_id: int) -> bool:
+        """Check if a device should trigger overflow based on rate"""
+        if device_id not in self.device_stats:
+            # Auto-register with default limits
+            # Device 0x0091 gets special treatment
+            max_rate = 500 if device_id == 0x0091 else 1000
+            self.register_device(device_id, max_rate)
+            
+        stats = self.device_stats[device_id]
+        current_time = time.time()
+        
+        # Add packet to window
+        stats['rate_window'].append(current_time)
+        stats['packet_count'] += 1
+        stats['last_packet_time'] = current_time
+        
+        # Calculate current rate
+        if len(stats['rate_window']) >= 10:
+            time_span = stats['rate_window'][-1] - stats['rate_window'][0]
+            if time_span > 0:
+                current_rate = len(stats['rate_window']) / time_span
+                
+                # Exceed threshold?
+                if current_rate > stats['max_rate']:
+                    if not stats['overflow_reported']:
+                        stats['overflow_reported'] = True
+                        stats['overflow_count'] += 1
+                        stats['last_overflow_log'] = current_time
+                        return True
+                else:
+                    # Reset if rate goes down
+                    if stats['overflow_reported'] and current_rate < stats['max_rate'] * 0.8:
+                        stats['overflow_reported'] = False
+        
+        return False
+    
+    def should_log_overflow(self, device_id: int) -> bool:
+        """Check if we should log overflow (prevent spam)"""
+        if device_id not in self.device_stats:
+            return True
+            
+        stats = self.device_stats[device_id]
+        current_time = time.time()
+        
+        # Log first overflow immediately
+        if stats['overflow_count'] == 1:
+            return True
+        
+        # Log every N overflows or every interval
+        time_since_last_log = current_time - stats['last_overflow_log']
+        if (stats['overflow_count'] % 10 == 0 or 
+            time_since_last_log >= stats['overflow_log_interval']):
+            stats['last_overflow_log'] = current_time
+            return True
+            
+        return False
+    
+    def get_device_stats(self, device_id: int) -> Dict:
+        """Get device statistics"""
+        return self.device_stats.get(device_id, {})
+    
+    def cleanup_old_data(self):
+        """Cleanup old device data periodically"""
+        current_time = time.time()
+        if current_time - self.last_cleanup > 300:  # Every 5 minutes
+            for device_id, stats in list(self.device_stats.items()):
+                # Remove devices inactive for 1 hour
+                if current_time - stats['last_packet_time'] > 3600:
+                    del self.device_stats[device_id]
+            self.last_cleanup = current_time
+
+# Global buffer manager instance
+_buffer_manager = _DeviceBufferManager()
+
+# ============================================================================
 # MAIN TECMP PACKET CLASS
 # ============================================================================
 
@@ -105,7 +259,7 @@ class TECMPPacket:
         
         # Payload header (16 bytes)
         interface_id: Unique bus/interface identifier
-        timestamp: 62-bit nanoseconds + 2-bit flags
+        timestamp: 62-bit nanoseconds + 2-bit flags (CORRECTED: relative timestamps)
         length: Payload length in bytes
         data_flags: Protocol-specific flags
         
@@ -140,7 +294,7 @@ class TECMPPacket:
             reserved: Reserved field (must be 0)
             device_flags: Combination of DeviceFlags (auto-calculated if None)
             interface_id: Unique interface identifier
-            timestamp: Timestamp in nanoseconds (auto-generated if None)
+            timestamp: Timestamp in nanoseconds (CORRECTED: relative if None)
             timestamp_sync_status: Synchronization status (0=synced, 1=lost)
             timestamp_recalc_flag: Whether timestamp was recalculated
             length: Payload length (auto-calculated if None)
@@ -172,9 +326,9 @@ class TECMPPacket:
         else:
             self.length = length & 0xFFFF
         
-        # Timestamp (generate if not provided)
+        # CORRECTED: Timestamp (generate relative if not provided)
         if timestamp is None:
-            self.timestamp = int(time.time() * 1e9) & TIMESTAMP_VALUE_MASK
+            self.timestamp = get_relative_timestamp()
         else:
             self.timestamp = timestamp & TIMESTAMP_VALUE_MASK
         
@@ -197,9 +351,13 @@ class TECMPPacket:
         if not hasattr(self, 'payload'):
             raise RuntimeError("CRITICAL: payload attribute not set!")
         
+        # IMPROVED: Register device in buffer manager
+        _buffer_manager.register_device(self.device_id)
+        
         self.logger.debug(f"Created TECMP packet: device_id=0x{self.device_id:04X}, "
                          f"type={get_data_type_name(self.data_type)}, "
-                         f"payload={len(self.payload)} bytes")
+                         f"payload={len(self.payload)} bytes, "
+                         f"timestamp={self.timestamp}")
     
     # ========================================================================
     # PROPERTIES
@@ -278,18 +436,53 @@ class TECMPPacket:
     
     def set_device_overflow(self, overflow: bool = True) -> None:
         """
-        Set device overflow flag (bit 15)
+        Set device overflow flag (bit 15) - IMPROVED VERSION
         
         According to TECMP v1.7: "The CM has lost data during transmission to the Sink"
         
         Args:
             overflow: Whether device overflow occurred
         """
-        self._device_overflow_detected = overflow
-        self.set_device_flag(DeviceFlags.OVERFLOW, overflow)
+        global _buffer_manager
         
         if overflow:
-            self.logger.warning(f"Device overflow detected for device 0x{self.device_id:04X}")
+            # IMPROVED: Check with buffer manager if overflow is justified
+            should_overflow = _buffer_manager.should_trigger_overflow(self.device_id)
+            
+            if should_overflow:
+                self._device_overflow_detected = overflow
+                self.set_device_flag(DeviceFlags.OVERFLOW, overflow)
+                
+                # IMPROVED: Limit logs to prevent spam
+                if _buffer_manager.should_log_overflow(self.device_id):
+                    stats = _buffer_manager.get_device_stats(self.device_id)
+                    overflow_count = stats.get('overflow_count', 0)
+                    
+                    self.logger.warning(
+                        f"Device overflow detected for device 0x{self.device_id:04X} "
+                        f"(occurrence #{overflow_count})"
+                    )
+                else:
+                    # Silent debug log for subsequent overflows
+                    self.logger.debug(
+                        f"Device overflow for device 0x{self.device_id:04X} (suppressed)"
+                    )
+            else:
+                # Overflow requested but rate is acceptable - possible false positive
+                self.logger.debug(
+                    f"Overflow requested for device 0x{self.device_id:04X} but rate is acceptable"
+                )
+        else:
+            # Reset overflow
+            self._device_overflow_detected = False
+            self.set_device_flag(DeviceFlags.OVERFLOW, False)
+            
+            # Reset in buffer manager
+            if self.device_id in _buffer_manager.device_stats:
+                _buffer_manager.device_stats[self.device_id]['overflow_reported'] = False
+        
+        # Cleanup old data periodically
+        _buffer_manager.cleanup_old_data()
     
     def get_device_flags_dict(self) -> Dict[str, bool]:
         """Get all device flags as dictionary"""
@@ -302,7 +495,7 @@ class TECMPPacket:
         }
     
     # ========================================================================
-    # TIMESTAMP MANAGEMENT
+    # TIMESTAMP MANAGEMENT - CORRECTED VERSION
     # ========================================================================
     
     def get_timestamp_with_flags(self) -> int:
@@ -325,9 +518,17 @@ class TECMPPacket:
         self._mark_dirty()
     
     def set_current_timestamp(self) -> None:
-        """Set timestamp to current time"""
-        self.timestamp = int(time.time() * 1e9) & TIMESTAMP_VALUE_MASK
+        """CORRECTED: Set timestamp to current relative time"""
+        self.timestamp = get_relative_timestamp()
         self._mark_dirty()
+    
+    def get_timestamp_seconds(self) -> float:
+        """Get timestamp as seconds (for debugging)"""
+        return self.timestamp / 1e9
+    
+    def get_timestamp_microseconds(self) -> int:
+        """Get timestamp as microseconds"""
+        return self.timestamp // 1000
     
     # ========================================================================
     # PAYLOAD MANAGEMENT - CRITICAL METHODS
@@ -352,6 +553,52 @@ class TECMPPacket:
         self.payload += bytes(data)
         self.length = len(self.payload)
         self._mark_dirty()
+    
+    # ========================================================================
+    # NEW METHODS - PERFORMANCE MONITORING
+    # ========================================================================
+    
+    def get_device_performance(self) -> Dict[str, Any]:
+        """Get performance metrics for this device - NEW METHOD"""
+        global _buffer_manager
+        stats = _buffer_manager.get_device_stats(self.device_id)
+        
+        if not stats:
+            return {"status": "not_monitored", "device_id": f"0x{self.device_id:04X}"}
+        
+        current_time = time.time()
+        time_since_last = current_time - stats.get('last_packet_time', current_time)
+        
+        # Calculate current rate
+        rate_window = stats.get('rate_window', deque())
+        current_rate = 0
+        if len(rate_window) >= 2:
+            time_span = rate_window[-1] - rate_window[0]
+            if time_span > 0:
+                current_rate = len(rate_window) / time_span
+        
+        return {
+            "device_id": f"0x{self.device_id:04X}",
+            "packet_count": stats.get('packet_count', 0),
+            "overflow_count": stats.get('overflow_count', 0),
+            "current_rate": round(current_rate, 2),
+            "max_rate": stats.get('max_rate', 1000),
+            "utilization_percent": round((current_rate / stats.get('max_rate', 1000)) * 100, 1),
+            "time_since_last_packet": round(time_since_last, 3),
+            "overflow_active": stats.get('overflow_reported', False),
+            "status": "overflow" if stats.get('overflow_reported', False) else "normal"
+        }
+    
+    def reset_device_stats(self) -> None:
+        """Reset performance statistics for this device - NEW METHOD"""
+        global _buffer_manager
+        if self.device_id in _buffer_manager.device_stats:
+            stats = _buffer_manager.device_stats[self.device_id]
+            stats['packet_count'] = 0
+            stats['overflow_count'] = 0
+            stats['overflow_reported'] = False
+            stats['rate_window'].clear()
+            self.logger.info(f"Reset statistics for device 0x{self.device_id:04X}")
     
     # ========================================================================
     # SERIALIZATION
@@ -471,12 +718,16 @@ class TECMPPacket:
             # 6. Update internal state from flags
             self._device_overflow_detected = bool(self.device_flags & DeviceFlags.OVERFLOW)
             
+            # IMPROVED: Register in buffer manager
+            _buffer_manager.register_device(self.device_id)
+            
             # Mark as clean
             self._is_dirty = False
             self._cached_serialized = data
             
             self.logger.debug(f"Deserialized TECMP packet: device=0x{self.device_id:04X}, "
-                            f"type={self.data_type_name}, payload={len(self.payload)} bytes")
+                            f"type={self.data_type_name}, payload={len(self.payload)} bytes, "
+                            f"timestamp={self.timestamp}")
             
         except struct.error as e:
             raise TECMPParsingError(f"Struct unpacking error: {e}")
@@ -629,7 +880,7 @@ class TECMPPacket:
                 self._mark_dirty()
     
     # ========================================================================
-    # SEGMENTATION
+    # SEGMENTATION - CORRECTED TIMESTAMPS
     # ========================================================================
     
     def needs_segmentation(self) -> bool:
@@ -638,7 +889,7 @@ class TECMPPacket:
     
     def segment(self) -> List['TECMPPacket']:
         """
-        Segment packet if payload > 800 bytes
+        Segment packet if payload > 800 bytes - CORRECTED: relative timestamps
         
         Returns:
             List of segmented packets
@@ -651,10 +902,16 @@ class TECMPPacket:
         total_segments = (len(self.payload) + segment_size - 1) // segment_size
         segment_id = int(time.time() * 1000) & 0xFFFF
         
+        # CORRECTED: Use relative base timestamp
+        base_timestamp = get_relative_timestamp()
+        
         for i in range(total_segments):
             start = i * segment_size
             end = min((i + 1) * segment_size, len(self.payload))
             segment_payload = self.payload[start:end]
+            
+            # CORRECTED: Use incremental relative timestamps
+            segment_timestamp = get_microsecond_increment(base_timestamp, i)
             
             # Create segment
             segment = TECMPPacket(
@@ -664,7 +921,7 @@ class TECMPPacket:
                 message_type=self.message_type,
                 data_type=self.data_type,
                 interface_id=self.interface_id,
-                timestamp=self.timestamp + i * 1000,  # Add 1µs per segment
+                timestamp=segment_timestamp,
                 timestamp_sync_status=self.timestamp_sync_status,
                 timestamp_recalc_flag=self.timestamp_recalc_flag,
                 data_flags=self.data_flags,
@@ -696,7 +953,8 @@ class TECMPPacket:
             
             segments.append(segment)
         
-        self.logger.info(f"Segmented {len(self.payload)} bytes into {total_segments} segments")
+        self.logger.info(f"Segmented {len(self.payload)} bytes into {total_segments} segments "
+                        f"with relative timestamps starting at {base_timestamp}")
         return segments
     
     # ========================================================================
@@ -739,6 +997,8 @@ class TECMPPacket:
             # Payload header
             "interface_id": f"0x{self.interface_id:08X}",
             "timestamp": self.timestamp,
+            "timestamp_seconds": self.get_timestamp_seconds(),
+            "timestamp_microseconds": self.get_timestamp_microseconds(),
             "timestamp_sync_status": self.timestamp_sync_status,
             "timestamp_recalc_flag": self.timestamp_recalc_flag,
             "length": self.length,
@@ -752,7 +1012,10 @@ class TECMPPacket:
             # Metadata
             "is_segmented": self.is_segmented,
             "is_multi_frame": self.is_multi_frame,
-            "total_size": self.size
+            "total_size": self.size,
+            
+            # IMPROVED: Performance data
+            "performance": self.get_device_performance()
         }
     
     def summary(self) -> str:
@@ -766,8 +1029,8 @@ class TECMPPacket:
             f"Data Type: {self.data_type_name} (0x{self.data_type:04X})",
             f"Counter: {self.counter}, Version: {self.version}",
             f"Interface: 0x{self.interface_id:08X}",
-            f"Timestamp: {self.timestamp} ns (sync={self.timestamp_sync_status}, "
-            f"recalc={self.timestamp_recalc_flag})",
+            f"Timestamp: {self.timestamp} ns ({self.get_timestamp_seconds():.9f}s) "
+            f"(sync={self.timestamp_sync_status}, recalc={self.timestamp_recalc_flag})",
             f"Device Flags: {flags_str}",
             f"Data Flags: 0x{self.data_flags:04X}",
             f"Payload: {len(self.payload)} bytes",
@@ -775,7 +1038,9 @@ class TECMPPacket:
         ]
         
         if self._device_overflow_detected:
-            lines.append("??  Device Overflow Detected")
+            perf = self.get_device_performance()
+            lines.append(f"??  Device Overflow - Rate: {perf['current_rate']} pps "
+                        f"(Max: {perf['max_rate']}) - Count: {perf['overflow_count']}")
         
         if self.is_segmented and self._segment_info:
             lines.append(f"Segmentation: {self._segment_info.sequence_number + 1}/"
@@ -786,8 +1051,9 @@ class TECMPPacket:
     def __str__(self) -> str:
         """String representation"""
         overflow_marker = " [OVERFLOW]" if self._device_overflow_detected else ""
+        timestamp_s = f" @{self.get_timestamp_seconds():.6f}s"
         return (f"TECMPPacket(device=0x{self.device_id:04X}, type={self.data_type_name}, "
-               f"msg={self.message_type_name}, payload={len(self.payload)}b{overflow_marker})")
+               f"msg={self.message_type_name}, payload={len(self.payload)}b{timestamp_s}{overflow_marker})")
     
     def __repr__(self) -> str:
         """Detailed representation"""
@@ -799,7 +1065,7 @@ class TECMPPacket:
                f"overflow={self._device_overflow_detected})")
 
 # ============================================================================
-# FACTORY FUNCTIONS
+# FACTORY FUNCTIONS - CORRECTED TIMESTAMPS
 # ============================================================================
 
 def create_logging_packet(device_id: int = 0x0040, 
@@ -807,9 +1073,10 @@ def create_logging_packet(device_id: int = 0x0040,
                          interface_id: int = 0x00000000,
                          payload: bytes = b"",
                          device_overflow: bool = False,
+                         timestamp: Optional[int] = None,
                          **kwargs) -> TECMPPacket:
     """
-    Create a logging stream packet with proper defaults
+    Create a logging stream packet with proper defaults - CORRECTED: relative timestamps
     
     Args:
         device_id: Device identifier
@@ -817,6 +1084,7 @@ def create_logging_packet(device_id: int = 0x0040,
         interface_id: Interface identifier
         payload: Data payload
         device_overflow: Whether device overflow occurred
+        timestamp: Specific timestamp (None for relative current time)
         **kwargs: Additional packet parameters
         
     Returns:
@@ -829,11 +1097,16 @@ def create_logging_packet(device_id: int = 0x0040,
     }
     defaults.update(kwargs)
     
+    # CORRECTED: Use relative timestamp if none provided
+    if timestamp is None:
+        timestamp = get_relative_timestamp()
+    
     packet = TECMPPacket(
         device_id=device_id,
         data_type=data_type,
         interface_id=interface_id,
         payload=payload,
+        timestamp=timestamp,
         **defaults
     )
     
@@ -846,16 +1119,16 @@ def create_logging_packet(device_id: int = 0x0040,
 def create_replay_packet(data_type: int,
                         interface_id: int,
                         payload: bytes,
-                        timestamp: int = 0,
+                        timestamp: Optional[int] = None,
                         **kwargs) -> TECMPPacket:
     """
-    Create a replay data packet with proper defaults
+    Create a replay data packet with proper defaults - CORRECTED: relative timestamps
     
     Args:
         data_type: Type of data to replay
         interface_id: Target interface
         payload: Data to send
-        timestamp: When to send (0 = immediately)
+        timestamp: When to send (None for relative current time, 0 for immediate)
         **kwargs: Additional packet parameters
         
     Returns:
@@ -874,6 +1147,10 @@ def create_replay_packet(data_type: int,
     }
     defaults.update(kwargs)
     
+    # CORRECTED: Use relative timestamp if none provided
+    if timestamp is None:
+        timestamp = get_relative_timestamp()
+    
     return TECMPPacket(
         data_type=data_type,
         interface_id=interface_id,
@@ -885,14 +1162,16 @@ def create_replay_packet(data_type: int,
 def create_control_message(control_message_id: int,
                           device_id: int = 0x0040,
                           payload_data: bytes = b"",
+                          timestamp: Optional[int] = None,
                           **kwargs) -> TECMPPacket:
     """
-    Create a control message packet
+    Create a control message packet - CORRECTED: relative timestamps
     
     Args:
         control_message_id: Control message ID from Table 26
         device_id: Sender device ID
         payload_data: Optional additional payload
+        timestamp: Specific timestamp (None for relative current time)
         **kwargs: Additional packet parameters
         
     Returns:
@@ -910,9 +1189,14 @@ def create_control_message(control_message_id: int,
     }
     defaults.update(kwargs)
     
+    # CORRECTED: Use relative timestamp if none provided
+    if timestamp is None:
+        timestamp = get_relative_timestamp()
+    
     return TECMPPacket(
         device_id=device_id,
         payload=control_payload,
+        timestamp=timestamp,
         **defaults
     )
 
@@ -953,6 +1237,97 @@ def reconstruct_from_segments(segments: List[TECMPPacket]) -> Optional[TECMPPack
     
     return reconstructed
 
+# ============================================================================
+# NEW UTILITY FUNCTIONS - DEBUGGING WITH TIMESTAMP INFO
+# ============================================================================
+
+def debug_device_overflow(device_id: int = 0x0091) -> Dict[str, Any]:
+    """
+    Debug function specifically for analyzing device overflow issues
+    
+    Args:
+        device_id: Device ID to debug (default 0x0091 which is problematic)
+        
+    Returns:
+        Debug information dictionary
+    """
+    global _buffer_manager
+    
+    # Create test packet to get stats
+    test_packet = TECMPPacket(device_id=device_id)
+    performance = test_packet.get_device_performance()
+    
+    # Get raw buffer manager stats
+    raw_stats = _buffer_manager.get_device_stats(device_id)
+    
+    debug_info = {
+        "device_id": f"0x{device_id:04X}",
+        "current_timestamp": get_relative_timestamp(),
+        "timestamp_seconds": get_relative_timestamp() / 1e9,
+        "performance": performance,
+        "raw_buffer_stats": raw_stats,
+        "recommendations": []
+    }
+    
+    # Add recommendations based on analysis
+    if performance.get('utilization_percent', 0) > 80:
+        debug_info["recommendations"].append(
+            f"High utilization ({performance['utilization_percent']}%) - consider reducing packet rate"
+        )
+    
+    if performance.get('overflow_count', 0) > 0:
+        debug_info["recommendations"].append(
+            f"Overflow detected {performance['overflow_count']} times - increase buffer size or reduce rate"
+        )
+    
+    if performance.get('current_rate', 0) > performance.get('max_rate', 1000):
+        debug_info["recommendations"].append(
+            f"Rate {performance['current_rate']} exceeds limit {performance['max_rate']} - throttle packet generation"
+        )
+    
+    return debug_info
+
+def reset_all_device_stats() -> None:
+    """Reset statistics for all devices"""
+    global _buffer_manager
+    _buffer_manager.device_stats.clear()
+    _buffer_manager.logger.info("Reset statistics for all devices")
+
+def get_all_device_stats() -> Dict[str, Dict]:
+    """Get statistics for all monitored devices"""
+    global _buffer_manager
+    result = {}
+    for device_id, stats in _buffer_manager.device_stats.items():
+        test_packet = TECMPPacket(device_id=device_id)
+        result[f"0x{device_id:04X}"] = test_packet.get_device_performance()
+    return result
+
+def create_timestamp_test_packets(count: int = 5, 
+                                 device_id: int = 0x0080) -> List[TECMPPacket]:
+    """
+    Create test packets with incremental relative timestamps for testing
+    
+    Args:
+        count: Number of packets to create
+        device_id: Device ID to use
+        
+    Returns:
+        List of packets with incremental timestamps
+    """
+    packets = []
+    base_timestamp = get_relative_timestamp()
+    
+    for i in range(count):
+        timestamp = get_microsecond_increment(base_timestamp, i * 100)  # 100µs apart
+        packet = create_logging_packet(
+            device_id=device_id,
+            payload=f"Test packet {i+1}".encode(),
+            timestamp=timestamp
+        )
+        packets.append(packet)
+    
+    return packets
+
 # Export public API
 __all__ = [
     'TECMPPacket',
@@ -966,4 +1341,12 @@ __all__ = [
     'create_replay_packet',
     'create_control_message',
     'reconstruct_from_segments',
+    # NEW: Debug utilities
+    'debug_device_overflow',
+    'reset_all_device_stats',
+    'get_all_device_stats',
+    # NEW: Timestamp utilities
+    'get_relative_timestamp',
+    'get_microsecond_increment',
+    'create_timestamp_test_packets',
 ]

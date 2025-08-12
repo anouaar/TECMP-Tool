@@ -3,7 +3,6 @@
 """
 Modern UI Configuration System
 """
-
 __version__ = "2.0.0"
 
 # UI Decorator System
@@ -22,13 +21,12 @@ from .modern_ui_decorator import (
 
 # TECMP Configuration
 from .tecmp_config_dialog import (
-    TECMPInterface,
-    BackendManager,
-    ProtocolWidget,
-    HardwareMonitorWidget
+    ProtocolDataWidget,
+    TECMPIntegrationWidget,
+    TECMPFullIntegrationWindow
 )
 
-# Protocol Configuration - CORRECTED
+# Protocol Configuration
 from .protocol_config_dialog import (
     ProtocolConfigDialog
 )
@@ -49,11 +47,10 @@ __all__ = [
     'decorate_input',
     
     # TECMP
-    'TECMPInterface',
-    'BackendManager',
-    'ProtocolWidget',
-    'HardwareMonitorWidget',
+    'ProtocolDataWidget',
+    'TECMPIntegrationWidget',
+    'TECMPFullIntegrationWindow',
     
-    # Protocols - CORRECTED
+    # Protocols
     'ProtocolConfigDialog'
 ]

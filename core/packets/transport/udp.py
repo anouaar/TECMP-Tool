@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from core.packets.base.exceptions import PacketParsingError
-from core.packets.base.exceptions import PacketSerializationError, PacketValidationError
 """
 UDP Packet implementation for TECMP-Tool.
 Provides complete UDP packet handling with all standard fields.
 """
 
-from core.packets.base.exceptions import PacketParsingError, PacketSerializationError, PacketValidationError
+import struct
+from typing import Optional, Dict, Any, Union
+from core.exceptions.exceptions import PacketParsingError, PacketSerializationError, PacketValidationError
 from core.packets.base.packet import Packet
-)
 
 
 class UDPPacket(Packet):
@@ -427,6 +426,10 @@ class UDPPacket(Packet):
             f"length={self.length}, checksum={self.checksum}, "
             f"payload_size={len(self.payload)})"
         )
+    
+    def get_type(self) -> str:
+        """Get packet type"""
+        return "UDP"
 
 
 # Module exports

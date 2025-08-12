@@ -13,7 +13,7 @@ from datetime import datetime
 
 # Import TCP packet from the transport module
 from core.packets.transport.tcp import TCPPacket
-from core.packets.base.packet import Packet, PacketError
+from core.packets.base.packet import Packet
 
 
 class TCPFactory:

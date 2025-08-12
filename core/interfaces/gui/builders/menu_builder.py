@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 TECMP Integrated Menu System - Design-System First + Facade Plug & Play
-Architecture simplifiée et directe pour intégration parfaite sans duplication.
+Simplified and direct architecture for perfect integration without duplication.
 
-? Design-System First : Utilise TECMPDesignSystem comme source unique
-? Facade Plug & Play : Connexion directe sans mocks
-? Zero Duplication : Réutilise les composants existants
-[STAR] Clean Architecture : Séparation claire des responsabilités
+? Design-System First: Uses TECMPDesignSystem as single source
+? Facade Plug & Play: Direct connection without mocks
+? Zero Duplication: Reuses existing components
+? Clean Architecture: Clear separation of responsibilities
 """
 
 import logging
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from PyQt5.QtWidgets import (
-    QMenuBar, QMenu, QAction, QActionGroup, QApplication, QFileDialog, QMessageBox
+    QMenuBar, QMenu, QAction, QActionGroup, QApplication, QFileDialog, QMessageBox, QInputDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QKeySequence
@@ -23,7 +23,7 @@ from PyQt5.QtGui import QIcon, QFont
 
 
 class MenuSection(Enum):
-    """Sections principales du menu."""
+    """Main menu sections."""
     FILE = "File"
     EDIT = "Edit" 
     VIEW = "View"
@@ -33,7 +33,7 @@ class MenuSection(Enum):
 
 @dataclass
 class MenuActionSpec:
-    """Spécification d'une action de menu."""
+    """Menu action specification."""
     text: str
     icon_name: str
     method_name: str
@@ -47,30 +47,30 @@ class MenuActionSpec:
 
 class TECMPIntegratedMenu(QObject):
     """
-    Menu TECMP intégré - Design-System First + Facade Plug & Play
+    TECMP Integrated Menu - Design-System First + Facade Plug & Play
     
-    Architecture pure qui utilise directement :
-    - TECMPDesignSystem pour le style et icônes
-    - TECMPFacade pour les actions réelles
-    - Pas de duplication de code
+    Pure architecture that directly uses:
+    - TECMPDesignSystem for style and icons
+    - TECMPFacade for real actions
+    - No code duplication
     """
     
-    # Signaux pour communication
+    # Signals for communication
     action_executed = pyqtSignal(str, bool)
     menu_state_changed = pyqtSignal(str, dict)
     
     def __init__(self, facade, design_system, parent=None):
         """
-        Initialise le menu intégré.
+        Initialize the integrated menu.
         
         Args:
-            facade: Instance de TECMPFacade (vraie connexion)
-            design_system: Instance de TECMPDesignSystem (style unifié)
-            parent: Widget parent
+            facade: TECMPFacade instance (real connection)
+            design_system: TECMPDesignSystem instance (unified style)
+            parent: Parent widget
         """
         super().__init__(parent)
         
-        # Références directes - pas de mocks
+        # Direct references - no mocks
         self.facade = facade
         self.design_system = design_system
         self.parent = parent
@@ -78,7 +78,7 @@ class TECMPIntegratedMenu(QObject):
         # Logger
         self.logger = logging.getLogger(f"{__name__}.TECMPIntegratedMenu")
         
-        # Stockage
+        # Storage
         self.menu_bar = None
         self.menus: Dict[str, QMenu] = {}
         self.actions: Dict[str, QAction] = {}
@@ -87,19 +87,19 @@ class TECMPIntegratedMenu(QObject):
         # Zoom level tracking
         self._current_zoom = 100
         
-        # Configuration des actions (source unique de vérité)
+        # Action configuration (single source of truth)
         self.action_specs = self._define_action_specifications()
         
-        # Connexions à la façade (vraies connexions)
+        # Facade connections (real connections)
         self._connect_facade_signals()
         
-        # Connexions au design system
+        # Design system connections
         self._connect_design_system_signals()
         
-        self.logger.info("Menu TECMP intégré initialisé - Design-System First")
+        self.logger.info("TECMP integrated menu initialized - Design-System First")
     
     def _define_action_specifications(self) -> Dict[MenuSection, List[MenuActionSpec]]:
-        """Définit toutes les spécifications d'actions (source unique)."""
+        """Define all action specifications (single source)."""
         return {
             MenuSection.FILE: [
                 MenuActionSpec("&Open File...", "open", "_open_file", 
@@ -160,49 +160,49 @@ class TECMPIntegratedMenu(QObject):
         }
     
     def build_menu_bar(self) -> QMenuBar:
-        """Construit la barre de menu complète."""
+        """Build the complete menu bar."""
         try:
             self.menu_bar = QMenuBar(self.parent)
             
-            # Appliquer le style du design system
+            # Apply design system style
             self._apply_design_system_style()
             
-            # Construire chaque section
+            # Build each section
             for section in MenuSection:
                 menu = self._build_menu_section(section)
                 self.menus[section.value] = menu
                 self.menu_bar.addMenu(menu)
             
-            # Mise à jour initiale des états
+            # Initial state update
             self._update_menu_states()
             
             # Populate dynamic menus
             self._populate_templates_menu()
             
-            self.logger.info("Menu bar construit avec succès")
+            self.logger.info("Menu bar built successfully")
             return self.menu_bar
             
         except Exception as e:
-            self.logger.error(f"Erreur construction menu bar: {e}")
+            self.logger.error(f"Error building menu bar: {e}")
             raise
     
     def _build_menu_section(self, section: MenuSection) -> QMenu:
-        """Construit une section de menu."""
+        """Build a menu section."""
         try:
             menu = QMenu(section.value, self.parent)
             
-            # Obtenir les spécifications pour cette section
+            # Get specifications for this section
             specs = self.action_specs.get(section, [])
             
             for spec in specs:
                 if spec.is_submenu:
-                    # Créer un sous-menu
+                    # Create submenu
                     submenu = QMenu(spec.text, self.parent)
                     if spec.submenu_items:
                         for sub_spec in spec.submenu_items:
                             sub_action = self._create_action(sub_spec)
                             submenu.addAction(sub_action)
-                            # Stocker l'action
+                            # Store action
                             action_key = f"{section.value.lower()}_{sub_spec.icon_name}_{sub_spec.text.replace('&', '').replace(' ', '_').lower()}"
                             self.actions[action_key] = sub_action
                     menu.addMenu(submenu)
@@ -210,31 +210,31 @@ class TECMPIntegratedMenu(QObject):
                     menu_key = f"{section.value.lower()}_{spec.icon_name}_menu"
                     self.menus[menu_key] = submenu
                 else:
-                    # Créer l'action normale
+                    # Create normal action
                     action = self._create_action(spec)
                     menu.addAction(action)
                     
-                    # Stocker l'action
+                    # Store action
                     action_key = f"{section.value.lower()}_{spec.icon_name}"
                     self.actions[action_key] = action
                 
-                # Ajouter séparateur si nécessaire
+                # Add separator if needed
                 if spec.separator_after:
                     menu.addSeparator()
             
             return menu
             
         except Exception as e:
-            self.logger.error(f"Erreur construction section {section.value}: {e}")
+            self.logger.error(f"Error building section {section.value}: {e}")
             raise
     
     def _create_action(self, spec: MenuActionSpec) -> QAction:
-        """Crée une action à partir de sa spécification."""
+        """Create an action from its specification."""
         try:
-            # Obtenir l'icône du design system
+            # Get icon from design system
             icon = self.design_system.get_icon(spec.icon_name) if hasattr(self.design_system, 'get_icon') else QIcon()
             
-            # Créer l'action
+            # Create action
             action = QAction(icon, spec.text, self.parent)
             
             # Configuration
@@ -251,19 +251,19 @@ class TECMPIntegratedMenu(QObject):
                 action.setToolTip(tooltip_text)
                 action.setStatusTip(spec.tooltip)
             
-            # Connexion du signal
+            # Signal connection
             action.triggered.connect(lambda checked=False: self._execute_action(spec.method_name, spec.checkable, checked))
             
             return action
             
         except Exception as e:
-            self.logger.error(f"Erreur création action {spec.text}: {e}")
+            self.logger.error(f"Error creating action {spec.text}: {e}")
             raise
     
     def _execute_action(self, method_name: str, is_checkable: bool = False, checked: bool = False):
-        """Exécute une action de menu."""
+        """Execute a menu action."""
         try:
-            # Actions spéciales (méthodes internes)
+            # Special actions (internal methods)
             if method_name.startswith('_'):
                 method = getattr(self, method_name, None)
                 if method:
@@ -273,10 +273,10 @@ class TECMPIntegratedMenu(QObject):
                         result = method()
                     success = result is not False
                 else:
-                    self.logger.warning(f"Méthode interne non trouvée: {method_name}")
+                    self.logger.warning(f"Internal method not found: {method_name}")
                     success = False
             else:
-                # Actions de la façade (connexion directe)
+                # Facade actions (direct connection)
                 method = getattr(self.facade, method_name, None)
                 if method:
                     if is_checkable:
@@ -285,29 +285,29 @@ class TECMPIntegratedMenu(QObject):
                         result = method()
                     success = result is not False
                 else:
-                    self.logger.warning(f"Méthode façade non trouvée: {method_name}")
+                    self.logger.warning(f"Facade method not found: {method_name}")
                     success = False
             
-            # Émettre signal de résultat
+            # Emit result signal
             self.action_executed.emit(method_name, success)
             
-            # Mettre à jour les états si nécessaire
+            # Update states if necessary
             if success:
                 self._update_menu_states()
             
         except Exception as e:
-            self.logger.error(f"Erreur exécution action {method_name}: {e}")
+            self.logger.error(f"Error executing action {method_name}: {e}")
             self.action_executed.emit(method_name, False)
     
     def _apply_design_system_style(self):
-        """Applique le style du design system au menu."""
+        """Apply design system style to menu."""
         try:
             if not hasattr(self.design_system, 'get_current_palette'):
                 return
             
             palette = self.design_system.get_current_palette()
             
-            # Style CSS basé sur le design system
+            # CSS style based on design system
             style = f"""
             QMenuBar {{
                 background: {palette.surface};
@@ -360,12 +360,12 @@ class TECMPIntegratedMenu(QObject):
                 self.menu_bar.setStyleSheet(style)
                 
         except Exception as e:
-            self.logger.error(f"Erreur application style: {e}")
+            self.logger.error(f"Error applying style: {e}")
     
     def _connect_facade_signals(self):
-        """Connecte les signaux de la façade pour mise à jour automatique."""
+        """Connect facade signals for automatic updates."""
         try:
-            # Connexions directes aux signaux réels de la façade
+            # Direct connections to real facade signals
             if hasattr(self.facade, 'file_saved'):
                 self.facade.file_saved.connect(self._on_file_saved)
             
@@ -375,13 +375,13 @@ class TECMPIntegratedMenu(QObject):
             if hasattr(self.facade, 'operation_completed'):
                 self.facade.operation_completed.connect(self._on_operation_completed)
             
-            self.logger.info("Signaux façade connectés")
+            self.logger.info("Facade signals connected")
             
         except Exception as e:
-            self.logger.error(f"Erreur connexion signaux façade: {e}")
+            self.logger.error(f"Error connecting facade signals: {e}")
     
     def _connect_design_system_signals(self):
-        """Connecte les signaux du design system."""
+        """Connect design system signals."""
         try:
             if hasattr(self.design_system, 'theme_changed'):
                 self.design_system.theme_changed.connect(self._on_theme_changed)
@@ -389,15 +389,15 @@ class TECMPIntegratedMenu(QObject):
             if hasattr(self.design_system, 'colors_changed'):
                 self.design_system.colors_changed.connect(self._on_colors_changed)
             
-            self.logger.info("Signaux design system connectés")
+            self.logger.info("Design system signals connected")
             
         except Exception as e:
-            self.logger.error(f"Erreur connexion signaux design system: {e}")
+            self.logger.error(f"Error connecting design system signals: {e}")
     
     def _update_menu_states(self):
-        """Met à jour l'état des actions selon l'état de la façade."""
+        """Update menu action states according to facade state."""
         try:
-            # État dark mode et hex view
+            # Dark mode and hex view state
             if 'view_dark_mode' in self.actions:
                 is_dark = self.facade.get_setting('ui', 'dark_mode_enabled', False)
                 self.actions['view_dark_mode'].setChecked(is_dark)
@@ -407,7 +407,7 @@ class TECMPIntegratedMenu(QObject):
                 self.actions['view_hex_view'].setChecked(is_hex)
             
         except Exception as e:
-            self.logger.error(f"Erreur mise à jour états menu: {e}")
+            self.logger.error(f"Error updating menu states: {e}")
     
     def _populate_templates_menu(self):
         """Populate the templates submenu dynamically."""
@@ -433,31 +433,31 @@ class TECMPIntegratedMenu(QObject):
                 templates_menu.addAction(action)
                 
         except Exception as e:
-            self.logger.error(f"Erreur population menu templates: {e}")
+            self.logger.error(f"Error populating templates menu: {e}")
     
-    # === HANDLERS DE SIGNAUX ===
+    # === SIGNAL HANDLERS ===
     
     def _on_file_saved(self, path: str, size: int):
-        """Handler pour fichier sauvegardé."""
+        """Handler for file saved."""
         self.menu_state_changed.emit("file", {"saved": True, "path": path})
     
     def _on_file_loaded(self, path: str, file_type: str):
-        """Handler pour fichier chargé."""
+        """Handler for file loaded."""
         self.menu_state_changed.emit("file", {"loaded": True, "path": path})
     
     def _on_operation_completed(self, success: bool, message: str, result):
-        """Handler pour opération terminée."""
+        """Handler for operation completed."""
         self._update_menu_states()
     
     def _on_theme_changed(self, theme_name: str):
-        """Handler pour changement de thème."""
+        """Handler for theme changed."""
         self._apply_design_system_style()
     
     def _on_colors_changed(self, colors_dict: dict):
-        """Handler pour changement de couleurs."""
+        """Handler for colors changed."""
         self._apply_design_system_style()
     
-    # === MÉTHODES INTERNES (ACTIONS SPÉCIALES) ===
+    # === INTERNAL METHODS (SPECIAL ACTIONS) ===
     
     # File menu actions
     def _open_file(self):
@@ -470,7 +470,7 @@ class TECMPIntegratedMenu(QObject):
                 return self.facade.load_file(filename)
             return False
         except Exception as e:
-            self.logger.error(f"Erreur ouverture fichier: {e}")
+            self.logger.error(f"Error opening file: {e}")
             return False
     
     def _save_file(self):
@@ -483,7 +483,7 @@ class TECMPIntegratedMenu(QObject):
                 return self.facade.save_file(filename)
             return False
         except Exception as e:
-            self.logger.error(f"Erreur sauvegarde fichier: {e}")
+            self.logger.error(f"Error saving file: {e}")
             return False
     
     def _load_trace(self):
@@ -491,7 +491,7 @@ class TECMPIntegratedMenu(QObject):
         try:
             return self.facade.load_trace_file() if hasattr(self.facade, 'load_trace_file') else False
         except Exception as e:
-            self.logger.error(f"Erreur chargement trace: {e}")
+            self.logger.error(f"Error loading trace: {e}")
             return False
     
     def _export_pcap(self):
@@ -504,7 +504,7 @@ class TECMPIntegratedMenu(QObject):
                 return self.facade.export_pcap(filename)
             return False
         except Exception as e:
-            self.logger.error(f"Erreur export PCAP: {e}")
+            self.logger.error(f"Error exporting PCAP: {e}")
             return False
     
     def _export_json(self):
@@ -517,29 +517,29 @@ class TECMPIntegratedMenu(QObject):
                 return self.facade.save_file(filename, file_type='json')
             return False
         except Exception as e:
-            self.logger.error(f"Erreur export JSON: {e}")
+            self.logger.error(f"Error exporting JSON: {e}")
             return False
     
     def _exit_application(self):
-        """Ferme l'application."""
+        """Exit the application."""
         try:
             if self.parent:
                 self.parent.close()
             return True
         except Exception as e:
-            self.logger.error(f"Erreur fermeture application: {e}")
+            self.logger.error(f"Error exiting application: {e}")
             return False
     
     # Edit menu actions
     def _show_preferences(self):
         """Show preferences dialog."""
         try:
-            # Placeholder pour dialog préférences
-            self.logger.info("Affichage préférences")
+            # Placeholder for preferences dialog
+            self.logger.info("Showing preferences")
             # Could show a dialog with facade.get_setting()/set_setting()
             return True
         except Exception as e:
-            self.logger.error(f"Erreur affichage préférences: {e}")
+            self.logger.error(f"Error showing preferences: {e}")
             return False
     
     # View menu actions
@@ -551,7 +551,7 @@ class TECMPIntegratedMenu(QObject):
             self.menu_state_changed.emit("view", {"zoom": level})
             return True
         except Exception as e:
-            self.logger.error(f"Erreur changement zoom: {e}")
+            self.logger.error(f"Error changing zoom: {e}")
             return False
     
     def _zoom_50(self):
@@ -577,7 +577,7 @@ class TECMPIntegratedMenu(QObject):
                 self.design_system.set_dark_mode(checked)
             return self.facade.set_setting('ui', 'dark_mode_enabled', checked)
         except Exception as e:
-            self.logger.error(f"Erreur basculement mode sombre: {e}")
+            self.logger.error(f"Error toggling dark mode: {e}")
             return False
     
     def _toggle_hex_view(self, checked: bool):
@@ -585,7 +585,7 @@ class TECMPIntegratedMenu(QObject):
         try:
             return self.facade.set_setting('ui', 'hex_view_enabled', checked)
         except Exception as e:
-            self.logger.error(f"Erreur basculement vue hex: {e}")
+            self.logger.error(f"Error toggling hex view: {e}")
             return False
     
     def _show_recent_operations(self):
@@ -596,7 +596,7 @@ class TECMPIntegratedMenu(QObject):
             self.logger.info(f"Recent operations: {len(operations)} items")
             return True
         except Exception as e:
-            self.logger.error(f"Erreur affichage opérations récentes: {e}")
+            self.logger.error(f"Error showing recent operations: {e}")
             return False
     
     # TECMP menu actions
@@ -616,7 +616,7 @@ class TECMPIntegratedMenu(QObject):
                         return True
             return False
         except Exception as e:
-            self.logger.error(f"Erreur chargement template: {e}")
+            self.logger.error(f"Error loading template: {e}")
             return False
     
     def _load_specific_template(self, template_name: str):
@@ -630,7 +630,7 @@ class TECMPIntegratedMenu(QObject):
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"Erreur chargement template {template_name}: {e}")
+            self.logger.error(f"Error loading template {template_name}: {e}")
             return False
     
     # Analysis menu actions
@@ -642,7 +642,7 @@ class TECMPIntegratedMenu(QObject):
             self.logger.info(f"Performance metrics retrieved: {len(metrics)} items")
             return True
         except Exception as e:
-            self.logger.error(f"Erreur affichage métriques: {e}")
+            self.logger.error(f"Error showing metrics: {e}")
             return False
     
     def _show_statistics(self):
@@ -653,7 +653,7 @@ class TECMPIntegratedMenu(QObject):
             self.logger.info(f"Statistics retrieved: {len(stats)} items")
             return True
         except Exception as e:
-            self.logger.error(f"Erreur affichage statistiques: {e}")
+            self.logger.error(f"Error showing statistics: {e}")
             return False
     
     def _show_system_status(self):
@@ -664,42 +664,42 @@ class TECMPIntegratedMenu(QObject):
             self.logger.info(f"System status retrieved")
             return True
         except Exception as e:
-            self.logger.error(f"Erreur affichage statut système: {e}")
+            self.logger.error(f"Error showing system status: {e}")
             return False
 
 
-# === FONCTION DE CRÉATION ===
+# === CREATION FUNCTION ===
 
 def create_tecmp_integrated_menu(facade, design_system, parent=None) -> QMenuBar:
     """
-    Crée un menu TECMP intégré.
+    Create a TECMP integrated menu.
     
     Args:
-        facade: Instance de TECMPFacade
-        design_system: Instance de TECMPDesignSystem  
-        parent: Widget parent
+        facade: TECMPFacade instance
+        design_system: TECMPDesignSystem instance  
+        parent: Parent widget
         
     Returns:
-        QMenuBar: Barre de menu configurée
+        QMenuBar: Configured menu bar
     """
     try:
         menu_system = TECMPIntegratedMenu(facade, design_system, parent)
         return menu_system.build_menu_bar()
         
     except Exception as e:
-        logging.getLogger(__name__).error(f"Erreur création menu intégré: {e}")
+        logging.getLogger(__name__).error(f"Error creating integrated menu: {e}")
         raise
 
 
-# === EXEMPLE D'UTILISATION ===
+# === USAGE EXAMPLE ===
 
 if __name__ == "__main__":
-    """Exemple d'intégration avec facade et design system réels."""
+    """Example integration with real facade and design system."""
     
     import sys
-    from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QInputDialog
+    from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel
     
-    # Simuler les composants réels (dans vraie app, imports depuis leurs modules)
+    # Simulate real components (in real app, imports from their modules)
     class MockTECMPFacade:
         def __init__(self):
             self.settings = {
@@ -782,7 +782,7 @@ if __name__ == "__main__":
             
         def get_icon(self, name):
             from PyQt5.QtGui import QIcon
-            return QIcon()  # Icône vide pour la démo
+            return QIcon()  # Empty icon for demo
             
         def set_dark_mode(self, enabled):
             print(f"? Dark mode: {enabled}")
@@ -793,11 +793,11 @@ if __name__ == "__main__":
             self.setWindowTitle("TECMP-Tool - Integrated Menu System")
             self.setGeometry(100, 100, 1000, 700)
             
-            # Composants réels (simulation)
+            # Real components (simulation)
             self.facade = MockTECMPFacade()
             self.design_system = MockTECMPDesignSystem()
             
-            # Menu intégré
+            # Integrated menu
             menu_bar = create_tecmp_integrated_menu(
                 self.facade, 
                 self.design_system, 
@@ -819,7 +819,7 @@ if __name__ == "__main__":
                 <li><b>TECMP:</b> Load Template, Templates List</li>
                 <li><b>Analysis:</b> Performance Metrics, Statistics, System Status</li>
             </ul>
-            <p><i>Toutes les actions sont connectées directement à la façade !</i></p>
+            <p><i>All actions are directly connected to the facade!</i></p>
             """)
             info_label.setWordWrap(True)
             layout.addWidget(info_label)
@@ -845,7 +845,7 @@ if __name__ == "__main__":
     # Application
     app = QApplication(sys.argv)
     
-    # Fenêtre principale
+    # Main window
     window = TestMainWindow()
     window.show()
     
@@ -855,8 +855,8 @@ if __name__ == "__main__":
     print("? Facade Plug & Play Integration")
     print("? Zero Code Duplication")
     
-    # Démarrage
+    # Start
     sys.exit(app.exec_())
     
-# Alias pour compatibilité
+# Alias for compatibility
 MenuBuilder = TECMPIntegratedMenu

@@ -12,7 +12,7 @@ from datetime import datetime
 
 # Import UDP packet from the transport module
 from core.packets.transport.udp import UDPPacket
-from core.packets.base.packet import Packet, PacketError
+from core.packets.base.packet import Packet
 
 
 class UDPFactory:

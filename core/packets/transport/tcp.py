@@ -1,8 +1,15 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+TCP Packet implementation for TECMP-Tool.
+Provides complete TCP packet handling with all standard fields.
+"""
+
 import struct
 from typing import Optional, Dict, List, Tuple
-from core.packets.base.exceptions import PacketParsingError, PacketSerializationError, PacketValidationError
+from core.exceptions.exceptions import PacketParsingError, PacketSerializationError, PacketValidationError
 from core.packets.base.packet import Packet
-)
+
 
 class TCPPacket(Packet):
     """Complete TCP packet implementation with ALL fields including optional ones"""
@@ -495,3 +502,15 @@ class TCPPacket(Packet):
     def get_header_length(self) -> int:
         """Get TCP header length in bytes"""
         return self.data_offset * 4
+    
+    def get_type(self) -> str:
+        """Get packet type"""
+        return "TCP"
+    
+    def _update_size(self):
+        """Update internal size tracking"""
+        self._size = len(self._raw_data) if hasattr(self, '_raw_data') else 0
+
+
+# Module exports
+__all__ = ['TCPPacket']

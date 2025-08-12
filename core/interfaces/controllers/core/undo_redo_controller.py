@@ -450,19 +450,26 @@ class UndoRedoController(QObject):
             max_history: Maximum number of commands to keep in history
             parent: Parent QObject (for Qt integration)
         """
-        # Initialize Qt base class if available
-        try:
-            if QT_AVAILABLE and QApplication.instance() is not None:
+        # CORRECTION: Toujours appeler super().__init__() si Qt est disponible
+        if QT_AVAILABLE:
+            try:
                 super().__init__(parent)
-                self._qt_initialized = True
-            else:
+                self._qt_initialized = QApplication.instance() is not None
+            except Exception as e:
+                # Si Qt échoue, initialiser comme un objet normal
                 self.parent = parent
                 self._qt_initialized = False
-        except Exception:
+                # Initialiser le logger ici car on ne peut pas attendre
+                self.logger = logging.getLogger("TECMP-Tool.UndoRedoController")
+                self.logger.warning(f"Qt initialization failed: {e}")
+        else:
+            # Pas de Qt disponible, utiliser le mock
             self.parent = parent
             self._qt_initialized = False
         
-        self.logger = logging.getLogger("TECMP-Tool.UndoRedoController")
+        # Initialiser le logger si pas déjà fait
+        if not hasattr(self, 'logger'):
+            self.logger = logging.getLogger("TECMP-Tool.UndoRedoController")
         
         # Command stacks
         self._undo_stack = deque(maxlen=max_history)

@@ -188,10 +188,10 @@ class ProtocolRegistry:
         """Initialize core imports that are commonly used."""
         try:
             # Try to load base packet class
-            base_packet_module = safe_import("core.packets.base.packet", "BasePacket")
+            base_packet_module = safe_import("core.packets.base.packet", "Packet")
             if base_packet_module:
-                self._class_cache["BasePacket"] = base_packet_module
-                self.logger.debug("BasePacket loaded successfully")
+                self._class_cache["Packet"] = base_packet_module
+                self.logger.debug("Packet loaded successfully")
             
             # Try to load common protocols
             for protocol, (module_path, class_name) in self.PROTOCOL_MODULES.items():

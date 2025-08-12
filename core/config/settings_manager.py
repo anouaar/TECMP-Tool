@@ -5,6 +5,8 @@ Settings Manager for TECMP-Tool - Centralized Configuration Management
 
 This module provides a centralized settings management system for the TECMP-Tool
 application, handling user preferences, application configuration, and persistence.
+
+FIXED VERSION: Resolves "unhashable type: 'dict'" error in get() method
 """
 
 import logging
@@ -49,6 +51,8 @@ class SettingsManager(QObject):
     - Change notifications via signals
     - Persistence across sessions
     - Migration support for settings upgrades
+    
+    FIXED: Resolves "unhashable type: 'dict'" error in get() method
     """
     
     # Signals
@@ -135,6 +139,20 @@ class SettingsManager(QObject):
                 'default_export_format': 'pcap',
                 'working_directory': None,
                 'temp_directory': None
+            }
+        ),
+        # AJOUT DU GROUPE 'advanced' POUR CORRIGER L'ERREUR
+        'advanced': SettingsGroup(
+            name='advanced',
+            description='Advanced settings for memory and performance',
+            scope=SettingsScope.USER,
+            defaults={
+                'memory_warning_threshold': 500,
+                'memory_critical_threshold': 1000,
+                'enable_debug_mode': False,
+                'enable_profiling': False,
+                'cache_size_mb': 100,
+                'thread_pool_size': 4
             }
         ),
         # AJOUT DU GROUPE 'protocol' (sans 's')
@@ -266,6 +284,10 @@ class SettingsManager(QObject):
             
         Returns:
             Setting value or default
+            
+        Note:
+            FIXED: Handles unhashable types (dict, list, set) as default values
+            to prevent "unhashable type" errors when defaults are used in hash contexts.
         """
         # Check if group exists
         if group not in self._groups:
@@ -276,14 +298,34 @@ class SettingsManager(QObject):
         
         # Get from appropriate storage based on scope
         if group_obj.scope == SettingsScope.SESSION:
-            return self._session_settings.get(group, {}).get(key, default)
+            session_value = self._session_settings.get(group, {}).get(key)
+            if session_value is not None:
+                return session_value
+            # Fall back to group defaults, then provided default
+            return group_obj.defaults.get(key, default)
+            
         elif group_obj.scope == SettingsScope.PROJECT:
-            return self._project_settings.get(group, {}).get(key, default)
+            project_value = self._project_settings.get(group, {}).get(key)
+            if project_value is not None:
+                return project_value
+            # Fall back to group defaults, then provided default
+            return group_obj.defaults.get(key, default)
+            
         else:  # USER or SYSTEM scope
             qt_key = f"{group}/{key}"
-            # Use group defaults if available, otherwise use provided default
-            fallback = group_obj.defaults.get(key, default)
-            return self._qt_settings.value(qt_key, fallback)
+            
+            # CRITICAL FIX: Handle unhashable defaults safely
+            # Check if setting exists first to avoid passing unhashable defaults to QSettings
+            if self._qt_settings.contains(qt_key):
+                # Setting exists, get it with a safe fallback (None)
+                return self._qt_settings.value(qt_key, None)
+            
+            # Setting doesn't exist, check group defaults
+            if key in group_obj.defaults:
+                return group_obj.defaults[key]
+            
+            # No group default, return provided default
+            return default
     
     def set(self, group: str, key: str, value: Any, save: bool = True) -> bool:
         """

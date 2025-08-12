@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 TECMP Status Bar Builder - Production Grade with Real-Time Indicators
-Utilise TECMPDesignSystem pour un style cohérent
+Uses TECMPDesignSystem for consistent styling
 """
 
 import logging
@@ -17,7 +17,7 @@ from PyQt5.QtGui import QFont, QPalette, QColor
 
 
 class StatusIndicator(QWidget):
-    """Widget indicateur personnalisé pour la barre de statut"""
+    """Custom indicator widget for status bar"""
     
     clicked = pyqtSignal()
     
@@ -29,7 +29,7 @@ class StatusIndicator(QWidget):
         self._init_ui(initial_value)
         
     def _init_ui(self, initial_value: str):
-        """Initialise l'interface de l'indicateur"""
+        """Initialize the indicator interface"""
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(4)
@@ -38,7 +38,7 @@ class StatusIndicator(QWidget):
         self.label = QLabel(f"{self.label_text}:")
         self.label.setStyleSheet("color: #6c757d; font-weight: 500;")
         
-        # Valeur
+        # Value
         self.value = QLabel(initial_value)
         self.value.setStyleSheet("color: #212529; font-weight: bold;")
         
@@ -46,21 +46,21 @@ class StatusIndicator(QWidget):
         layout.addWidget(self.value)
         
     def set_value(self, value: str):
-        """Met à jour la valeur affichée"""
+        """Update the displayed value"""
         self.value.setText(value)
         
     def set_color(self, color: str):
-        """Change la couleur de la valeur"""
+        """Change the value color"""
         self.value.setStyleSheet(f"color: {color}; font-weight: bold;")
         
     def mousePressEvent(self, event):
-        """Émet un signal quand cliqué"""
+        """Emit signal when clicked"""
         if event.button() == Qt.LeftButton:
             self.clicked.emit()
 
 
 class MemoryProgressBar(QProgressBar):
-    """Barre de progression personnalisée pour la mémoire"""
+    """Custom progress bar for memory usage"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -72,10 +72,10 @@ class MemoryProgressBar(QProgressBar):
 
 class TECMPStatusBar(QStatusBar):
     """
-    Barre de statut TECMP complète avec indicateurs temps réel
+    Complete TECMP status bar with real-time indicators
     """
     
-    # Signaux personnalisés
+    # Custom signals
     memory_clicked = pyqtSignal()
     tecmp_clicked = pyqtSignal()
     protocols_clicked = pyqtSignal()
@@ -86,7 +86,7 @@ class TECMPStatusBar(QStatusBar):
         self.design_system = design_system
         self.logger = logging.getLogger(f"{__name__}.TECMPStatusBar")
         
-        # Timers pour mises à jour
+        # Update timers
         self.time_timer = QTimer()
         self.memory_timer = QTimer()
         self.stats_timer = QTimer()
@@ -94,7 +94,7 @@ class TECMPStatusBar(QStatusBar):
         # Widgets
         self.indicators = {}
         
-        # Initialisation
+        # Initialization
         self._init_ui()
         self._connect_signals()
         self._start_timers()
@@ -103,25 +103,25 @@ class TECMPStatusBar(QStatusBar):
         self.logger.info("TECMPStatusBar initialized with real-time indicators")
         
     def _init_ui(self):
-        """Initialise tous les widgets de la barre de statut"""
+        """Initialize all status bar widgets"""
         
-        # Message temporaire (partie gauche)
+        # Temporary message (left part)
         self.showMessage("TECMP Tool Ready", 3000)
         
-        # Container principal pour les widgets permanents
+        # Main container for permanent widgets
         container = QWidget()
         container_layout = QHBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(12)
         
-        # === INDICATEURS ===
+        # === INDICATORS ===
         
-        # 1. Temps
+        # 1. Time
         self.indicators['time'] = StatusIndicator("Time", "00:00:00")
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(self.indicators['time'])
         
-        # 2. Mémoire avec barre de progression
+        # 2. Memory with progress bar
         memory_widget = QWidget()
         memory_layout = QHBoxLayout(memory_widget)
         memory_layout.setContentsMargins(8, 4, 8, 4)
@@ -143,42 +143,42 @@ class TECMPStatusBar(QStatusBar):
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(memory_widget)
         
-        # 3. Encapsulation TECMP
+        # 3. TECMP encapsulation
         self.indicators['tecmp'] = StatusIndicator("TECMP", "OFF")
         self.indicators['tecmp'].clicked.connect(self.tecmp_clicked.emit)
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(self.indicators['tecmp'])
         
-        # 4. Nombre de protocoles
+        # 4. Protocol count
         self.indicators['protocols'] = StatusIndicator("Protocols", "0")
         self.indicators['protocols'].clicked.connect(self.protocols_clicked.emit)
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(self.indicators['protocols'])
         
-        # 5. Paquets générés
+        # 5. Generated packets
         self.indicators['packets'] = StatusIndicator("Packets", "0")
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(self.indicators['packets'])
         
-        # 6. État de capture
+        # 6. Capture state
         self.indicators['capture'] = StatusIndicator("Capture", "IDLE")
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(self.indicators['capture'])
         
-        # 7. Opérations
+        # 7. Operations
         self.indicators['operations'] = StatusIndicator("Ops", "0")
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(self.indicators['operations'])
         
-        # 8. Mode/Thème
+        # 8. Mode/Theme
         self.indicators['theme'] = StatusIndicator("Theme", "Light")
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(self.indicators['theme'])
         
-        # Ajouter stretch pour pousser à droite
+        # Add stretch to push to right
         container_layout.addStretch()
         
-        # 9. État de connexion avec LED
+        # 9. Connection state with LED
         self.connection_led = QLabel("?")
         self.connection_led.setStyleSheet("color: #28a745; font-size: 16px;")
         self.connection_text = QLabel("Connected")
@@ -195,11 +195,11 @@ class TECMPStatusBar(QStatusBar):
         container_layout.addWidget(self._create_separator())
         container_layout.addWidget(connection_widget)
         
-        # Ajouter le container à la barre de statut
+        # Add container to status bar
         self.addPermanentWidget(container)
         
     def _create_separator(self) -> QFrame:
-        """Crée un séparateur vertical"""
+        """Create a vertical separator"""
         separator = QFrame()
         separator.setFrameStyle(QFrame.VLine | QFrame.Sunken)
         separator.setStyleSheet("""
@@ -212,9 +212,9 @@ class TECMPStatusBar(QStatusBar):
         return separator
         
     def _connect_signals(self):
-        """Connecte les signaux du facade"""
+        """Connect facade signals"""
         try:
-            # Protocoles
+            # Protocols
             if hasattr(self.facade, 'protocol_stack_changed'):
                 self.facade.protocol_stack_changed.connect(self._update_protocol_count)
                 
@@ -222,11 +222,11 @@ class TECMPStatusBar(QStatusBar):
             if hasattr(self.facade, 'tecmp_encapsulation_changed'):
                 self.facade.tecmp_encapsulation_changed.connect(self._update_tecmp_status)
                 
-            # Paquets
+            # Packets
             if hasattr(self.facade, 'packet_built'):
                 self.facade.packet_built.connect(self._on_packet_built)
                 
-            # Mémoire
+            # Memory
             if hasattr(self.facade, 'memory_warning'):
                 self.facade.memory_warning.connect(self._on_memory_warning)
                 
@@ -234,11 +234,11 @@ class TECMPStatusBar(QStatusBar):
             if hasattr(self.facade, 'capture_status_changed'):
                 self.facade.capture_status_changed.connect(self._update_capture_status)
                 
-            # Opérations
+            # Operations
             if hasattr(self.facade, 'operation_completed'):
                 self.facade.operation_completed.connect(self._on_operation_completed)
                 
-            # Thème
+            # Theme
             if hasattr(self.design_system, 'theme_changed'):
                 self.design_system.theme_changed.connect(self._update_theme_indicator)
                 
@@ -248,26 +248,26 @@ class TECMPStatusBar(QStatusBar):
             self.logger.error(f"Error connecting signals: {e}")
             
     def _start_timers(self):
-        """Démarre les timers de mise à jour"""
-        # Timer pour l'heure (chaque seconde)
+        """Start update timers"""
+        # Timer for time (every second)
         self.time_timer.timeout.connect(self._update_time)
         self.time_timer.start(1000)
         
-        # Timer pour la mémoire (toutes les 2 secondes)
+        # Timer for memory (every 2 seconds)
         self.memory_timer.timeout.connect(self._update_memory)
         self.memory_timer.start(2000)
         
-        # Timer pour les stats (toutes les 5 secondes)
+        # Timer for stats (every 5 seconds)
         self.stats_timer.timeout.connect(self._update_stats)
         self.stats_timer.start(5000)
         
-        # Mise à jour initiale
+        # Initial update
         self._update_time()
         self._update_memory()
         self._update_stats()
         
     def _apply_styling(self):
-        """Applique le style du design system"""
+        """Apply design system styling"""
         try:
             palette = self.design_system.get_current_palette()
             
@@ -300,7 +300,7 @@ class TECMPStatusBar(QStatusBar):
             
             self.setStyleSheet(style)
             
-            # Style des indicateurs
+            # Style indicators
             for indicator in self.indicators.values():
                 self._style_indicator(indicator)
                 
@@ -308,7 +308,7 @@ class TECMPStatusBar(QStatusBar):
             self.logger.error(f"Error applying styling: {e}")
             
     def _style_indicator(self, indicator: StatusIndicator):
-        """Style un indicateur individuel"""
+        """Style an individual indicator"""
         palette = self.design_system.get_current_palette()
         
         indicator.setStyleSheet(f"""
@@ -325,22 +325,22 @@ class TECMPStatusBar(QStatusBar):
             }}
         """)
         
-    # === MISES À JOUR EN TEMPS RÉEL ===
+    # === REAL-TIME UPDATES ===
     
     def _update_time(self):
-        """Met à jour l'heure"""
+        """Update the time"""
         current_time = datetime.now().strftime("%H:%M:%S")
         self.indicators['time'].set_value(current_time)
         
     def _update_memory(self):
-        """Met à jour l'utilisation mémoire"""
+        """Update memory usage"""
         try:
             if hasattr(self.facade, 'memory_controller') and self.facade.memory_controller:
                 memory_mb = self.facade.memory_controller.get_memory_usage()
                 self.memory_bar.setValue(int(memory_mb))
                 self.memory_text.setText(f"{memory_mb:.1f} MB")
                 
-                # Changer couleur selon seuil
+                # Change color based on threshold
                 palette = self.design_system.get_current_palette()
                 if memory_mb > 800:
                     color = palette.error
@@ -359,16 +359,16 @@ class TECMPStatusBar(QStatusBar):
             self.logger.debug(f"Memory update error: {e}")
             
     def _update_stats(self):
-        """Met à jour les statistiques"""
+        """Update statistics"""
         try:
             if hasattr(self.facade, 'get_statistics'):
                 stats = self.facade.get_statistics()
                 
-                # Opérations
+                # Operations
                 total_ops = stats.get('total_operations', 0)
                 self.indicators['operations'].set_value(str(total_ops))
                 
-                # Paquets
+                # Packets
                 packets = stats.get('packets_created', 0)
                 self.indicators['packets'].set_value(str(packets))
                 
@@ -376,12 +376,12 @@ class TECMPStatusBar(QStatusBar):
             self.logger.debug(f"Stats update error: {e}")
             
     def _update_protocol_count(self, protocols):
-        """Met à jour le nombre de protocoles"""
+        """Update protocol count"""
         count = len(protocols) if protocols else 0
         self.indicators['protocols'].set_value(str(count))
         
     def _update_tecmp_status(self, is_active, protocols=None):
-        """Met à jour le statut TECMP"""
+        """Update TECMP status"""
         palette = self.design_system.get_current_palette()
         
         if is_active:
@@ -392,7 +392,7 @@ class TECMPStatusBar(QStatusBar):
             self.indicators['tecmp'].set_color(palette.neutral_600)
             
     def _update_capture_status(self, is_active, status=None):
-        """Met à jour le statut de capture"""
+        """Update capture status"""
         palette = self.design_system.get_current_palette()
         
         if is_active:
@@ -403,12 +403,12 @@ class TECMPStatusBar(QStatusBar):
             self.indicators['capture'].set_color(palette.neutral_600)
             
     def _update_theme_indicator(self, theme_name):
-        """Met à jour l'indicateur de thème"""
+        """Update theme indicator"""
         display_name = "Dark" if "dark" in theme_name.lower() else "Light"
         self.indicators['theme'].set_value(display_name)
         
     def _on_packet_built(self, packet):
-        """Incrémente le compteur de paquets"""
+        """Increment packet counter"""
         try:
             current = int(self.indicators['packets'].value.text())
             self.indicators['packets'].set_value(str(current + 1))
@@ -416,10 +416,10 @@ class TECMPStatusBar(QStatusBar):
             pass
             
     def _on_memory_warning(self, usage_mb, message):
-        """Gère les avertissements mémoire"""
+        """Handle memory warnings"""
         palette = self.design_system.get_current_palette()
         
-        # Flash la barre de mémoire
+        # Flash memory bar
         self.memory_bar.setStyleSheet(f"""
             QProgressBar::chunk {{
                 background: {palette.error};
@@ -427,23 +427,23 @@ class TECMPStatusBar(QStatusBar):
             }}
         """)
         
-        # Message temporaire
+        # Temporary message
         self.showMessage(f"?? Memory Warning: {message}", 5000)
         
     def _on_operation_completed(self, success, message, result):
-        """Met à jour le compteur d'opérations"""
+        """Update operation counter"""
         try:
             current = int(self.indicators['operations'].value.text())
             self.indicators['operations'].set_value(str(current + 1))
             
-            # Message temporaire
+            # Temporary message
             icon = "?" if success else "?"
             self.showMessage(f"{icon} {message}", 3000)
         except:
             pass
             
     def set_connection_status(self, connected: bool, text: str = None):
-        """Met à jour le statut de connexion"""
+        """Update connection status"""
         palette = self.design_system.get_current_palette()
         
         if connected:
@@ -461,11 +461,11 @@ class TECMPStatusBar(QStatusBar):
     # === PUBLIC API ===
     
     def add_custom_indicator(self, name: str, label: str, initial_value: str = "-") -> StatusIndicator:
-        """Ajoute un indicateur personnalisé"""
+        """Add a custom indicator"""
         indicator = StatusIndicator(label, initial_value)
         self._style_indicator(indicator)
         
-        # Insérer avant le stretch
+        # Insert before stretch
         layout = self.findChild(QWidget).layout()
         layout.insertWidget(layout.count() - 2, self._create_separator())
         layout.insertWidget(layout.count() - 2, indicator)
@@ -474,11 +474,11 @@ class TECMPStatusBar(QStatusBar):
         return indicator
         
     def get_indicator(self, name: str) -> Optional[StatusIndicator]:
-        """Récupère un indicateur par son nom"""
+        """Get an indicator by name"""
         return self.indicators.get(name)
         
     def cleanup(self):
-        """Nettoyage des timers"""
+        """Cleanup timers"""
         self.time_timer.stop()
         self.memory_timer.stop()
         self.stats_timer.stop()
@@ -486,22 +486,22 @@ class TECMPStatusBar(QStatusBar):
 
 def create_tecmp_integrated_status_bar(facade, design_system, parent=None) -> TECMPStatusBar:
     """
-    Crée une barre de statut TECMP intégrée
+    Create a TECMP integrated status bar
     
     Args:
-        facade: Instance du TECMPFacade
-        design_system: Instance du TECMPDesignSystem
-        parent: Widget parent
+        facade: TECMPFacade instance
+        design_system: TECMPDesignSystem instance
+        parent: Parent widget
         
     Returns:
-        TECMPStatusBar: Barre de statut configurée et prête
+        TECMPStatusBar: Configured and ready status bar
     """
     try:
         status_bar = TECMPStatusBar(facade, design_system, parent)
         
-        # Connexions additionnelles si nécessaire
+        # Additional connections if needed
         if parent and hasattr(parent, 'centralWidget'):
-            # Connecter les clics aux actions
+            # Connect clicks to actions
             status_bar.protocols_clicked.connect(
                 lambda: parent.centralWidget().show_protocol_details()
                 if hasattr(parent.centralWidget(), 'show_protocol_details') else None
@@ -516,22 +516,22 @@ def create_tecmp_integrated_status_bar(facade, design_system, parent=None) -> TE
         
     except Exception as e:
         logging.getLogger(__name__).error(f"Failed to create status bar: {e}")
-        # Fallback simple
+        # Simple fallback
         simple_bar = QStatusBar(parent)
         simple_bar.showMessage("Status Bar Error - Using fallback", 5000)
         return simple_bar
 
 
-# === EXEMPLE D'UTILISATION ===
+# === USAGE EXAMPLE ===
 
 if __name__ == "__main__":
     import sys
     from PyQt5.QtWidgets import QApplication, QMainWindow
     
-    # Créer une app de test
+    # Create test app
     app = QApplication(sys.argv)
     
-    # Simuler facade et design system
+    # Simulate facade and design system
     class MockFacade:
         def get_statistics(self):
             return {
@@ -554,12 +554,12 @@ if __name__ == "__main__":
                 error = "#f44336"
             return Palette()
     
-    # Créer fenêtre
+    # Create window
     window = QMainWindow()
     window.setWindowTitle("TECMP Status Bar Test")
     window.resize(1200, 600)
     
-    # Créer la barre de statut
+    # Create status bar
     status_bar = create_tecmp_integrated_status_bar(
         MockFacade(),
         MockDesignSystem(),
@@ -568,7 +568,8 @@ if __name__ == "__main__":
     
     window.setStatusBar(status_bar)
     
-    # Widget central simple
+    # Simple central widget
+    from PyQt5.QtWidgets import QLabel
     central = QLabel("TECMP Tool - Status Bar Demo")
     central.setAlignment(Qt.AlignCenter)
     central.setStyleSheet("""
@@ -580,10 +581,10 @@ if __name__ == "__main__":
     """)
     window.setCentralWidget(central)
     
-    # Ajouter un indicateur custom
+    # Add custom indicator
     custom = status_bar.add_custom_indicator("custom", "Custom", "Hello")
     
-    # Simuler des changements
+    # Simulate changes
     QTimer.singleShot(2000, lambda: status_bar.set_connection_status(False, "Offline"))
     QTimer.singleShot(4000, lambda: status_bar.set_connection_status(True, "Online"))
     QTimer.singleShot(6000, lambda: custom.set_value("World"))

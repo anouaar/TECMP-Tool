@@ -10,7 +10,8 @@ from typing import Optional, Dict, Any, List, Union, Tuple
 
 # Import VLAN packet from the network module
 from core.packets.network.vlan import VLANPacket
-from core.packets.base.packet import Packet, PacketError
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import PacketError
 
 
 class VLANFactory:

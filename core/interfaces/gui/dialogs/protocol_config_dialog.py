@@ -277,7 +277,7 @@ class ProtocolConfigDialog(QDialog):
             }}""")
         
         # Close button
-        close_btn = QPushButton("×")
+        close_btn = QPushButton("X")
         close_btn.setObjectName("closeButton")
         close_btn.clicked.connect(self.reject)
         close_btn.setCursor(Qt.PointingHandCursor)
@@ -319,156 +319,264 @@ class ProtocolConfigDialog(QDialog):
         self.setStyleSheet("""
             /* Global styles */
             * {
-                font-family: 'Segoe UI', Arial, sans-serif;
+                font-family: 'Segoe UI', 'SF Pro Display', Arial, sans-serif;
             }
             
             /* Dialog container */
             #dialogContainer {
-                background-color: #FFFFFF;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #FAFBFD, stop:1 #F5F7FA);
                 border: none;
             }
             
-            /* Header */
+            /* Header avec gradient subtil */
             #dialogHeader {
-                background-color: #F8F9FA;
-                border-bottom: 1px solid #E9ECEF;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #FFFFFF, stop:1 #F8FAFC);
+                border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+                border-radius: 12px 12px 0 0;
             }
             
             #closeButton {
                 background: transparent;
                 border: none;
-                font-size: 24px;
-                color: #6C757D;
-                border-radius: 16px;
+                font-size: 18px;
+                color: #64748B;
+                border-radius: 20px;
+                padding: 8px;
             }
             
             #closeButton:hover {
-                background-color: #E9ECEF;
-                color: #495057;
+                background: rgba(248, 113, 113, 0.1);
+                color: #EF4444;
             }
             
             /* Content area */
             #contentArea {
-                background-color: #FFFFFF;
+                background: transparent;
             }
             
-            /* Form fields */
+            /* Champs de saisie modernes - STYLE PRINCIPAL */
             QLineEdit, QSpinBox, QComboBox {
-                padding: 10px 14px;
-                border: 1px solid #CED4DA;
-                border-radius: 4px;
-                font-size: 14px;
-                background-color: white;
-                color: #495057;
+                padding: 14px 18px;
+                border: 2px solid transparent;
+                border-radius: 12px;
+                font-size: 15px;
+                font-weight: 400;
+                background: rgba(255, 255, 255, 0.9);
+                color: #1E293B;
             }
             
+            /* Etat normal avec ombre subtile */
+            QLineEdit:!focus, QSpinBox:!focus, QComboBox:!focus {
+                background: rgba(248, 250, 252, 0.95);
+                border: 2px solid rgba(226, 232, 240, 0.6);
+            }
+            
+            /* Etat focus - effet moderne */
             QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
-                border-color: #3498DB;
-                outline: none;
+                border: 2px solid #3B82F6;
+                background: rgba(255, 255, 255, 1);
             }
             
+            /* Etat hover */
+            QLineEdit:hover:!focus, QSpinBox:hover:!focus, QComboBox:hover:!focus {
+                border: 2px solid rgba(148, 163, 184, 0.8);
+                background: rgba(255, 255, 255, 0.98);
+            }
+            
+            /* Etat erreur - plus doux */
             QLineEdit[hasError="true"], QSpinBox[hasError="true"] {
-                border-color: #DC3545;
-                background-color: #FFFFFF;
+                border: 2px solid #F87171;
+                background: rgba(254, 242, 242, 0.9);
             }
             
+            /* Placeholder plus elegant */
+            QLineEdit::placeholder {
+                color: rgba(100, 116, 139, 0.7);
+                font-style: italic;
+            }
+            
+            /* Spinbox buttons plus discrets */
+            QSpinBox::up-button, QSpinBox::down-button {
+                background: transparent;
+                border: none;
+                width: 20px;
+                margin: 2px;
+            }
+            
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+                background: rgba(59, 130, 246, 0.1);
+                border-radius: 4px;
+            }
+            
+            /* ComboBox moderne */
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+                background: transparent;
+            }
+            
+            QComboBox::down-arrow {
+                width: 12px;
+                height: 12px;
+                background: #64748B;
+            }
+            
+            QComboBox QAbstractItemView {
+                border: 1px solid rgba(226, 232, 240, 0.8);
+                border-radius: 8px;
+                background: white;
+                selection-background-color: rgba(59, 130, 246, 0.1);
+                padding: 4px;
+            }
+            
+            /* Checkboxes modernes */
             QCheckBox {
-                font-size: 14px;
-                color: #495057;
-                spacing: 8px;
+                font-size: 15px;
+                color: #374151;
+                spacing: 12px;
+                font-weight: 400;
             }
             
             QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border-radius: 3px;
-                border: 1px solid #CED4DA;
-                background-color: white;
+                width: 20px;
+                height: 20px;
+                border-radius: 6px;
+                border: 2px solid rgba(203, 213, 225, 0.8);
+                background: rgba(255, 255, 255, 0.9);
+            }
+            
+            QCheckBox::indicator:hover {
+                border-color: #3B82F6;
+                background: rgba(59, 130, 246, 0.05);
             }
             
             QCheckBox::indicator:checked {
-                background-color: #3498DB;
-                border-color: #3498DB;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #3B82F6, stop:1 #1D4ED8);
+                border-color: #3B82F6;
             }
             
-            /* Buttons */
+            /* Buttons avec style moderne */
             #buttonBar {
-                background-color: #F8F9FA;
-                border-top: 1px solid #E9ECEF;
+                background: linear-gradient(180deg, #FAFBFC 0%, #F1F5F9 100%);
+                border-top: 1px solid rgba(226, 232, 240, 0.8);
+                border-radius: 0 0 12px 12px;
             }
             
             QPushButton {
-                padding: 10px 24px;
-                border-radius: 4px;
-                font-size: 14px;
+                padding: 12px 28px;
+                border-radius: 10px;
+                font-size: 15px;
                 font-weight: 500;
-                border: 1px solid transparent;
-                min-width: 100px;
+                border: 2px solid transparent;
+                min-width: 110px;
             }
             
             #cancelBtn {
-                background-color: #FFFFFF;
-                color: #6C757D;
-                border-color: #CED4DA;
+                background: rgba(255, 255, 255, 0.9);
+                color: #64748B;
+                border: 2px solid rgba(226, 232, 240, 0.8);
             }
             
             #cancelBtn:hover {
-                background-color: #F8F9FA;
-                border-color: #ADB5BD;
+                background: rgba(248, 250, 252, 1);
+                border-color: #94A3B8;
             }
             
             #saveBtn {
-                background-color: #28A745;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #10B981, stop:1 #059669);
                 color: white;
-                border-color: #28A745;
+                border: 2px solid #10B981;
+                font-weight: 600;
             }
             
             #saveBtn:hover {
-                background-color: #218838;
-                border-color: #1E7E34;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #059669, stop:1 #047857);
             }
             
             #saveBtn:disabled {
-                background-color: #E9ECEF;
-                color: #6C757D;
-                border-color: #E9ECEF;
+                background: rgba(226, 232, 240, 0.8);
+                color: #94A3B8;
+                border-color: rgba(226, 232, 240, 0.8);
             }
             
-            /* Group boxes */
+            /* Group boxes avec style epure */
             QGroupBox {
                 font-weight: 600;
-                font-size: 15px;
-                color: #2C3E50;
+                font-size: 16px;
+                color: #1F2937;
                 border: none;
-                margin-top: 20px;
-                padding-top: 20px;
+                margin-top: 25px;
+                padding-top: 25px;
             }
             
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 0px;
-                padding: 0 0 10px 0;
+                padding: 0 0 15px 0;
+                color: #374151;
             }
             
-            /* Text areas */
+            /* Text areas modernes */
             QTextEdit {
-                padding: 10px;
-                border: 1px solid #CED4DA;
-                border-radius: 4px;
+                padding: 16px;
+                border: 2px solid rgba(226, 232, 240, 0.6);
+                border-radius: 12px;
                 font-size: 14px;
-                background-color: white;
-                color: #495057;
+                background: rgba(248, 250, 252, 0.95);
+                color: #374151;
             }
             
             QTextEdit:focus {
-                border-color: #3498DB;
+                border-color: #3B82F6;
+                background: rgba(255, 255, 255, 1);
+            }
+            
+            /* Scrollbar moderne */
+            QScrollBar:vertical {
+                background: rgba(241, 245, 249, 0.8);
+                width: 8px;
+                border-radius: 4px;
+                margin: 0;
+            }
+            
+            QScrollBar::handle:vertical {
+                background: rgba(148, 163, 184, 0.6);
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            
+            QScrollBar::handle:vertical:hover {
+                background: rgba(100, 116, 139, 0.8);
+            }
+            
+            /* Labels avec meilleure typography */
+            QLabel {
+                color: #374151;
+                font-weight: 500;
+                letter-spacing: 0.3px;
+            }
+            
+            /* Container de champs avec espacement moderne */
+            #fieldContainer {
+                margin-bottom: 20px;
+            }
+            
+            /* Animation globale */
+            QWidget {
                 outline: none;
             }
         """)
         
     def _load_fields(self):
-        """Load fields based on protocol with default values"""
-        self.config = self.default_config.copy()
+        """Load fields based on protocol with default values - FIXED to not overwrite existing config"""
+        # CORRECTION: Use existing config if available, otherwise use defaults
+        if not self.config:
+            self.config = self.default_config.copy()
         
         # Create widgets for each field based on protocol
         if self.protocol_name == "TCP":
@@ -487,6 +595,58 @@ class ProtocolConfigDialog(QDialog):
             self._create_arp_fields()
         else:
             self._create_generic_fields()
+            
+        # CORRECTION: Update widgets with actual config values
+        self._update_widgets_from_config()
+            
+    def _update_widgets_from_config(self):
+        """Update all widgets with current config values"""
+        for field_name, value in self.config.items():
+            if field_name in self.field_widgets:
+                widget = self.field_widgets[field_name]
+                
+                if isinstance(widget, QLineEdit):
+                    widget.setText(str(value))
+                elif isinstance(widget, QSpinBox):
+                    widget.setValue(int(value))
+                elif isinstance(widget, QDoubleSpinBox):
+                    widget.setValue(float(value))
+                elif isinstance(widget, QCheckBox):
+                    widget.setChecked(bool(value))
+                elif isinstance(widget, QComboBox):
+                    # For operation field in ARP
+                    if field_name == "operation":
+                        widget.setCurrentIndex(value - 1)
+                    else:
+                        # Try to find the value in combo items
+                        for i in range(widget.count()):
+                            if str(widget.itemText(i)) == str(value):
+                                widget.setCurrentIndex(i)
+                                break
+                elif isinstance(widget, QTextEdit):
+                    widget.setPlainText(str(value))
+                    
+        # Special handling for TCP flags
+        if self.protocol_name == "TCP" and "flags" in self.config:
+            flags_value = self.config.get("flags", 0)
+            if "fin" in self.field_widgets:
+                self.field_widgets["fin"].setChecked(bool(flags_value & 0x001))
+            if "syn" in self.field_widgets:
+                self.field_widgets["syn"].setChecked(bool(flags_value & 0x002))
+            if "rst" in self.field_widgets:
+                self.field_widgets["rst"].setChecked(bool(flags_value & 0x004))
+            if "psh" in self.field_widgets:
+                self.field_widgets["psh"].setChecked(bool(flags_value & 0x008))
+            if "ack" in self.field_widgets:
+                self.field_widgets["ack"].setChecked(bool(flags_value & 0x010))
+            if "urg" in self.field_widgets:
+                self.field_widgets["urg"].setChecked(bool(flags_value & 0x020))
+            if "ece" in self.field_widgets:
+                self.field_widgets["ece"].setChecked(bool(flags_value & 0x040))
+            if "cwr" in self.field_widgets:
+                self.field_widgets["cwr"].setChecked(bool(flags_value & 0x080))
+            if "ns" in self.field_widgets:
+                self.field_widgets["ns"].setChecked(bool(flags_value & 0x100))
             
     def _create_field_container(self, label_text, widget, description, field_name):
         """Create a field container with label, widget, description and error"""

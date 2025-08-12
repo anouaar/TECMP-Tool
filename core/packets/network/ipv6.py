@@ -8,13 +8,13 @@ Provides complete IPv6 packet handling with all header fields and extension head
 import struct
 import socket
 import random
-from typing import Optional, Dict, Any, Union, List, Tuple
-from core.packets.base.packet import (
-    Packet,
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import (
     PacketParsingError,
     PacketSerializationError,
     PacketValidationError,
 )
+from typing import Optional, Dict, Any, Union, List, Tuple
 
 
 class IPv6Packet(Packet):

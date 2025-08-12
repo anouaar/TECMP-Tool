@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 core/exceptions/exceptions.py
 Exception classes for TECMP-Tool - Fixed version
 """
+
+from typing import Optional, Dict, Any
+
 
 class PacketError(Exception):
     """Base class for all packet-related errors."""
@@ -32,7 +36,7 @@ class EthernetValidationError(PacketValidationError):
 class TECMPValidationError(PacketValidationError):
     """Exception raised when a TECMP packet is invalid."""
     
-    def __init__(self, message: str, field: str = None, timestamp: int = None) -> None:
+    def __init__(self, message: str, field: Optional[str] = None, timestamp: Optional[int] = None) -> None:
         super().__init__(message)
         self.field = field
         self.timestamp = timestamp

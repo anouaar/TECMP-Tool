@@ -10,7 +10,8 @@ from typing import Optional, Dict, Any, List, Tuple
 
 # Import ARP packet from the network module
 from core.packets.network.arp import ARPPacket
-from core.packets.base.packet import Packet, PacketError
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import PacketError
 
 
 class ARPFactory:

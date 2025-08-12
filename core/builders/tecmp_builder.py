@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Specialized builder for the proprietary TECMP protocol.
+Complete TECMPPacketBuilder with all Ethernet fields matching JSON structure
 Professional-grade implementation with complete feature integration.
-CORRECTED VERSION - All identified issues fixed and aligned with constants.py
+ENHANCED VERSION - All Ethernet fields from Wireshark JSON included
 """
 from __future__ import annotations
 from typing import Any, Dict, Optional, List, Union, Iterator, Tuple, cast
@@ -43,6 +43,100 @@ class TECMPValidationError(TECMPBuilderError):
     pass
 
 @dataclass
+class EthernetConfig:
+    """Complete Ethernet configuration identical to Wireshark JSON"""
+    # Main fields
+    dst: str = "01:00:5e:00:00:00"
+    src: str = "38:2a:19:80:24:66"
+    type: str = "0x99fe"
+    stream: str = "0"
+    
+    # Destination details (dst_tree)
+    dst_resolved: str = "IPv4mcast_00"
+    dst_oui: str = "65630"
+    dst_oui_resolved: str = "ICANN, IANA Department"
+    dst_lg: str = "0"
+    dst_ig: str = "1"
+    
+    # Source details (src_tree)  
+    src_resolved: str = "TechnicaEngi_80:24:66"
+    src_oui: str = "3680793"
+    src_oui_resolved: str = "Technica Engineering GmbH"
+    src_lg: str = "0"
+    src_ig: str = "0"
+    
+    # Duplicated addr fields (for dst)
+    dst_addr: str = field(init=False)
+    dst_addr_resolved: str = field(init=False)
+    dst_addr_oui: str = field(init=False)
+    dst_addr_oui_resolved: str = field(init=False)
+    dst_addr_lg: str = field(init=False)
+    dst_addr_ig: str = field(init=False)
+    
+    # Duplicated addr fields (for src)
+    src_addr: str = field(init=False)
+    src_addr_resolved: str = field(init=False)
+    src_addr_oui: str = field(init=False)
+    src_addr_oui_resolved: str = field(init=False)
+    src_addr_lg: str = field(init=False)
+    src_addr_ig: str = field(init=False)
+    
+    def __post_init__(self):
+        """Auto-populate addr fields (duplicates)"""
+        # Destination addr fields
+        self.dst_addr = self.dst
+        self.dst_addr_resolved = self.dst_resolved
+        self.dst_addr_oui = self.dst_oui
+        self.dst_addr_oui_resolved = self.dst_oui_resolved
+        self.dst_addr_lg = self.dst_lg
+        self.dst_addr_ig = self.dst_ig
+        
+        # Source addr fields
+        self.src_addr = self.src
+        self.src_addr_resolved = self.src_resolved
+        self.src_addr_oui = self.src_oui
+        self.src_addr_oui_resolved = self.src_oui_resolved
+        self.src_addr_lg = self.src_lg
+        self.src_addr_ig = self.src_ig
+    
+    def to_json_structure(self) -> Dict[str, Any]:
+        """Returns the exact JSON structure like Wireshark"""
+        return {
+            "eth": {
+                "eth.dst": self.dst,
+                "eth.dst_tree": {
+                    "eth.dst_resolved": self.dst_resolved,
+                    "eth.dst.oui": self.dst_oui,
+                    "eth.dst.oui_resolved": self.dst_oui_resolved,
+                    "eth.dst.lg": self.dst_lg,
+                    "eth.dst.ig": self.dst_ig,
+                    "eth.addr": self.dst_addr,
+                    "eth.addr_resolved": self.dst_addr_resolved,
+                    "eth.addr.oui": self.dst_addr_oui,
+                    "eth.addr.oui_resolved": self.dst_addr_oui_resolved,
+                    "eth.lg": self.dst_addr_lg,
+                    "eth.ig": self.dst_addr_ig
+                },
+                "eth.src": self.src,
+                "eth.src_tree": {
+                    "eth.src_resolved": self.src_resolved,
+                    "eth.src.oui": self.src_oui,
+                    "eth.src.oui_resolved": self.src_oui_resolved,
+                    "eth.src.lg": self.src_lg,
+                    "eth.src.ig": self.src_ig,
+                    "eth.addr": self.src_addr,
+                    "eth.addr_resolved": self.src_addr_resolved,
+                    "eth.addr.oui": self.src_addr_oui,
+                    "eth.addr.oui_resolved": self.src_addr_oui_resolved,
+                    "eth.lg": self.src_addr_lg,
+                    "eth.ig": self.src_addr_ig
+                },
+                "eth.type": self.type,
+                "eth.stream": self.stream
+            }
+        }
+
+@dataclass
 class TECMPConfig:
     device_id: int = 0x0080
     counter: int = 0
@@ -55,10 +149,24 @@ class TECMPConfig:
     timestamp: Optional[int] = None
     timestamp_sync_status: int = 0
     data_flags: int = 0x0000
-    length: Optional[int] = None  # FIXED: Changed from 74 to None - will be auto-calculated
+    length: Optional[int] = None
     src_mac: str = "38:2a:19:80:41:cb"
     dst_mac: str = "01:00:5e:00:00:00"
     payload: Optional[bytes] = None
+    
+    # Missing extended Ethernet fields
+    eth_type: str = "0x99fe"
+    eth_stream: str = "0"
+    eth_dst_resolved: str = "IPv4mcast_00"
+    eth_dst_oui: str = "65630"
+    eth_dst_oui_resolved: str = "ICANN, IANA Department"
+    eth_dst_lg: str = "0"
+    eth_dst_ig: str = "1"
+    eth_src_resolved: str = "TechnicaEngi_80:24:66"
+    eth_src_oui: str = "3680793"
+    eth_src_oui_resolved: str = "Technica Engineering GmbH"
+    eth_src_lg: str = "0"
+    eth_src_ig: str = "0"
     
     # Professional features config
     enable_coherence: bool = False
@@ -72,6 +180,16 @@ class TECMPConfig:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
 class TECMPPacketBuilder:
+    # Extended OUI database
+    OUI_DATABASE = {
+        "01005e": {"decimal": 65630, "org": "ICANN, IANA Department"},
+        "382a19": {"decimal": 3680793, "org": "Technica Engineering GmbH"},
+        "382a20": {"decimal": 3680800, "org": "Technica Engineering GmbH"},
+        "001b1b": {"decimal": 6939, "org": "Ceton Corp"},
+        "00115b": {"decimal": 4443, "org": "Netxen, Inc."},
+        # Add other OUIs as needed
+    }
+
     # Use DataType constants instead of hardcoded values
     PROTOCOL_TO_DATATYPE = {
         "Ethernet": DataType.ETHERNET_II,
@@ -126,6 +244,8 @@ class TECMPPacketBuilder:
             self.parent = kwargs['parent']
         
         self._config = TECMPConfig()
+        self._ethernet_config = EthernetConfig()  # NEW: Complete Ethernet configuration
+        self._auto_resolve_ethernet = True  # NEW: Automatic resolution
         
         # Apply initial config if provided
         for key, value in initial_config.items():
@@ -138,7 +258,7 @@ class TECMPPacketBuilder:
             "segmentation": False,
             "max_segment_size": 1400,
             "validate": True,
-            "validate_segments": True  # ADDED: Separate segment validation control
+            "validate_segments": True
         }
         
         self._outer_ethernet_config = None
@@ -217,6 +337,8 @@ class TECMPPacketBuilder:
         else:
             return f"Unknown (0x{device_id:04X})"
 
+    # === ORIGINAL TECMP METHODS ===
+    
     def with_device_id(self, device_id: int) -> "TECMPPacketBuilder":
         self._config.device_id = self._convert_hex_value(device_id)
         return self
@@ -267,17 +389,68 @@ class TECMPPacketBuilder:
 
     def with_source_mac(self, src: str) -> "TECMPPacketBuilder":
         self._config.src_mac = src
+        # NEW: Update Ethernet config
+        self._ethernet_config.src = src
+        if self._auto_resolve_ethernet:
+            self._resolve_src_fields()
         return self
 
     def with_destination_mac(self, dst: str) -> "TECMPPacketBuilder":
         self._config.dst_mac = dst
+        # NEW: Update Ethernet config
+        self._ethernet_config.dst = dst
+        if self._auto_resolve_ethernet:
+            self._resolve_dst_fields()
         return self
 
     def with_payload(self, payload: bytes) -> "TECMPPacketBuilder":
         self._config.payload = payload
-        # FIXED: Auto-calculate length if not explicitly set
         if self._config.length is None:
             self._config.length = len(payload)
+        return self
+
+    # === NEW METHODS FOR MISSING ETHERNET FIELDS ===
+    
+    def with_eth_type(self, eth_type: str) -> "TECMPPacketBuilder":
+        self._config.eth_type = eth_type
+        return self
+    
+    def with_eth_stream(self, stream: str) -> "TECMPPacketBuilder":
+        self._config.eth_stream = stream
+        return self
+    
+    def with_eth_dst_resolved(self, resolved: str) -> "TECMPPacketBuilder":
+        self._config.eth_dst_resolved = resolved
+        return self
+    
+    def with_eth_dst_oui(self, oui: str) -> "TECMPPacketBuilder":
+        self._config.eth_dst_oui = oui
+        return self
+    
+    def with_eth_dst_oui_resolved(self, oui_resolved: str) -> "TECMPPacketBuilder":
+        self._config.eth_dst_oui_resolved = oui_resolved
+        return self
+    
+    def with_eth_dst_flags(self, lg: str, ig: str) -> "TECMPPacketBuilder":
+        self._config.eth_dst_lg = lg
+        self._config.eth_dst_ig = ig
+        return self
+    
+    def with_eth_src_resolved(self, resolved: str) -> "TECMPPacketBuilder":
+        self._config.eth_src_resolved = resolved
+        return self
+    
+    def with_eth_src_oui(self, oui: str) -> "TECMPPacketBuilder":
+        self._config.eth_src_oui = oui
+        return self
+    
+    def with_eth_src_oui_resolved(self, oui_resolved: str) -> "TECMPPacketBuilder":
+        self._config.eth_src_oui_resolved = oui_resolved
+        return self
+    
+    def with_eth_src_flags(self, lg: str, ig: str) -> "TECMPPacketBuilder":
+        self._config.eth_src_lg = lg
+        self._config.eth_src_ig = ig
         return self
 
     def with_priority(self, prio: int) -> "TECMPPacketBuilder":
@@ -285,16 +458,11 @@ class TECMPPacketBuilder:
         return self
     
     def with_encapsulated_protocols(self, protocols: List) -> "TECMPPacketBuilder":
-        """
-        Process encapsulated protocols for data type detection
-        Note: encapsulated_protocols field removed from TECMPPacket
-        """
-        # Only use for data type detection
+        """Process encapsulated protocols for data type detection"""
         if protocols:
             data_type = self.detect_data_type_from_protocols(protocols)
             if data_type != DataType.ETHERNET_II or self._config.data_type == DataType.ETHERNET_II:
                 self._config.data_type = data_type
-        
         return self
     
     def enable_segmentation(self, max_size: Optional[int] = None) -> "TECMPPacketBuilder":
@@ -308,11 +476,189 @@ class TECMPPacketBuilder:
         return self
     
     def disable_segment_validation(self) -> "TECMPPacketBuilder":
-        """ADDED: Disable validation specifically for segments"""
         self._qos_settings["validate_segments"] = False
         return self
 
-    # Professional feature methods
+    # === NEW COMPLETE ETHERNET METHODS ===
+    
+    def with_eth_dst_mac(self, mac: str) -> "TECMPPacketBuilder":
+        """Configure destination MAC with automatic resolution"""
+        self._ethernet_config.dst = mac
+        self._config.dst_mac = mac  # Sync with old system
+        if self._auto_resolve_ethernet:
+            self._resolve_dst_fields()
+        return self
+    
+    def with_eth_src_mac(self, mac: str) -> "TECMPPacketBuilder":
+        """Configure source MAC with automatic resolution"""
+        self._ethernet_config.src = mac
+        self._config.src_mac = mac  # Sync with old system
+        if self._auto_resolve_ethernet:
+            self._resolve_src_fields()
+        return self
+    
+    def with_eth_type(self, ether_type: str) -> "TECMPPacketBuilder":
+        """Configure EtherType"""
+        self._ethernet_config.type = ether_type
+        return self
+    
+    def with_eth_stream(self, stream_id: str) -> "TECMPPacketBuilder":
+        """Configure Stream ID"""
+        self._ethernet_config.stream = stream_id
+        return self
+    
+    # Destination detailed methods
+    def with_eth_dst_resolved(self, resolved: str) -> "TECMPPacketBuilder":
+        self._ethernet_config.dst_resolved = resolved
+        return self
+    
+    def with_eth_dst_oui(self, oui: str) -> "TECMPPacketBuilder":
+        self._ethernet_config.dst_oui = oui
+        return self
+    
+    def with_eth_dst_oui_resolved(self, oui_resolved: str) -> "TECMPPacketBuilder":
+        self._ethernet_config.dst_oui_resolved = oui_resolved
+        return self
+    
+    def with_eth_dst_flags(self, lg: str, ig: str) -> "TECMPPacketBuilder":
+        """Configure destination lg/ig flags"""
+        self._ethernet_config.dst_lg = lg
+        self._ethernet_config.dst_ig = ig
+        return self
+    
+    # Source detailed methods
+    def with_eth_src_resolved(self, resolved: str) -> "TECMPPacketBuilder":
+        self._ethernet_config.src_resolved = resolved
+        return self
+    
+    def with_eth_src_oui(self, oui: str) -> "TECMPPacketBuilder":
+        self._ethernet_config.src_oui = oui
+        return self
+    
+    def with_eth_src_oui_resolved(self, oui_resolved: str) -> "TECMPPacketBuilder":
+        self._ethernet_config.src_oui_resolved = oui_resolved
+        return self
+    
+    def with_eth_src_flags(self, lg: str, ig: str) -> "TECMPPacketBuilder":
+        """Configure source lg/ig flags"""
+        self._ethernet_config.src_lg = lg
+        self._ethernet_config.src_ig = ig
+        return self
+    
+    def with_complete_ethernet(self, **kwargs) -> "TECMPPacketBuilder":
+        """Configure all Ethernet fields at once"""
+        for key, value in kwargs.items():
+            if hasattr(self._ethernet_config, key):
+                setattr(self._ethernet_config, key, str(value))
+        return self
+    
+    def from_eth_json_structure(self, json_data: Dict[str, Any]) -> "TECMPPacketBuilder":
+        """Configure from Wireshark JSON structure"""
+        eth = json_data.get("eth", {})
+        
+        # Main fields
+        if "eth.dst" in eth:
+            self.with_eth_dst_mac(eth["eth.dst"])
+        if "eth.src" in eth:
+            self.with_eth_src_mac(eth["eth.src"])
+        if "eth.type" in eth:
+            self.with_eth_type(eth["eth.type"])
+        if "eth.stream" in eth:
+            self.with_eth_stream(eth["eth.stream"])
+        
+        # Destination details
+        if "eth.dst_tree" in eth:
+            dst_tree = eth["eth.dst_tree"]
+            if "eth.dst_resolved" in dst_tree:
+                self.with_eth_dst_resolved(dst_tree["eth.dst_resolved"])
+            if "eth.dst.oui" in dst_tree:
+                self.with_eth_dst_oui(dst_tree["eth.dst.oui"])
+            if "eth.dst.oui_resolved" in dst_tree:
+                self.with_eth_dst_oui_resolved(dst_tree["eth.dst.oui_resolved"])
+            if "eth.dst.lg" in dst_tree and "eth.dst.ig" in dst_tree:
+                self.with_eth_dst_flags(dst_tree["eth.dst.lg"], dst_tree["eth.dst.ig"])
+        
+        # Source details
+        if "eth.src_tree" in eth:
+            src_tree = eth["eth.src_tree"]
+            if "eth.src_resolved" in src_tree:
+                self.with_eth_src_resolved(src_tree["eth.src_resolved"])
+            if "eth.src.oui" in src_tree:
+                self.with_eth_src_oui(src_tree["eth.src.oui"])
+            if "eth.src.oui_resolved" in src_tree:
+                self.with_eth_src_oui_resolved(src_tree["eth.src.oui_resolved"])
+            if "eth.src.lg" in src_tree and "eth.src.ig" in src_tree:
+                self.with_eth_src_flags(src_tree["eth.src.lg"], src_tree["eth.src.ig"])
+        
+        return self
+    
+    def disable_ethernet_auto_resolve(self) -> "TECMPPacketBuilder":
+        """Disable automatic Ethernet field resolution"""
+        self._auto_resolve_ethernet = False
+        return self
+    
+    def enable_ethernet_auto_resolve(self) -> "TECMPPacketBuilder":
+        """Enable automatic Ethernet field resolution"""
+        self._auto_resolve_ethernet = True
+        return self
+
+    # === AUTOMATIC ETHERNET RESOLUTION ===
+    
+    def _resolve_dst_fields(self):
+        """Automatically resolve destination fields"""
+        oui_hex = self._extract_oui(self._ethernet_config.dst)
+        if oui_hex in self.OUI_DATABASE:
+            oui_info = self.OUI_DATABASE[oui_hex]
+            self._ethernet_config.dst_oui = str(oui_info["decimal"])
+            self._ethernet_config.dst_oui_resolved = oui_info["org"]
+        
+        # Name resolution
+        if oui_hex == "01005e":
+            self._ethernet_config.dst_resolved = "IPv4mcast_00"
+        else:
+            # Generic format
+            suffix = self._ethernet_config.dst.replace(":", "")[6:]
+            if oui_hex in self.OUI_DATABASE:
+                org_short = self.OUI_DATABASE[oui_hex]["org"].split()[0]
+                self._ethernet_config.dst_resolved = f"{org_short}_{suffix[:6]}"
+        
+        # Automatic flags
+        self._ethernet_config.dst_lg = "0"  # Always global
+        self._ethernet_config.dst_ig = "1" if self._is_multicast(self._ethernet_config.dst) else "0"
+    
+    def _resolve_src_fields(self):
+        """Automatically resolve source fields"""
+        oui_hex = self._extract_oui(self._ethernet_config.src)
+        if oui_hex in self.OUI_DATABASE:
+            oui_info = self.OUI_DATABASE[oui_hex]
+            self._ethernet_config.src_oui = str(oui_info["decimal"])
+            self._ethernet_config.src_oui_resolved = oui_info["org"]
+        
+        # Name resolution
+        if oui_hex == "382a19":
+            suffix = self._ethernet_config.src.split(":")[-3:]
+            self._ethernet_config.src_resolved = f"TechnicaEngi_{':'.join(suffix)}"
+        else:
+            # Generic format
+            suffix = self._ethernet_config.src.split(":")[-3:]
+            if oui_hex in self.OUI_DATABASE:
+                org_short = self.OUI_DATABASE[oui_hex]["org"].split()[0]
+                self._ethernet_config.src_resolved = f"{org_short}_{':'.join(suffix)}"
+        
+        # Automatic flags
+        self._ethernet_config.src_lg = "0"  # Always global
+        self._ethernet_config.src_ig = "0"  # Source always unicast
+    
+    def _extract_oui(self, mac: str) -> str:
+        """Extract OUI from MAC address"""
+        return mac.replace(":", "")[:6].lower()
+    
+    def _is_multicast(self, mac: str) -> bool:
+        """Check if address is multicast"""
+        first_byte = int(mac.split(":")[0], 16)
+        return (first_byte & 0x01) == 1
+
+        # Professional feature methods
     def with_professional_features(self, enable: bool = True) -> "TECMPPacketBuilder":
         self._config.enable_professional = enable
         self._config.auto_inject_features = enable
@@ -377,9 +723,9 @@ class TECMPPacketBuilder:
         self._outer_ethernet_config = config
         
         if "src_mac" in config:
-            self._config.src_mac = config["src_mac"]
+            self.with_eth_src_mac(config["src_mac"])
         if "dst_mac" in config:
-            self._config.dst_mac = config["dst_mac"]
+            self.with_eth_dst_mac(config["dst_mac"])
         
         return self
     
@@ -394,7 +740,6 @@ class TECMPPacketBuilder:
         
         if "encapsulated" in tecmp_config or "encapsulated_protocols" in tecmp_config:
             protocols = tecmp_config.get("encapsulated", tecmp_config.get("encapsulated_protocols", []))
-            # Use protocols only for data type detection
             if "data_type" not in tecmp_config or tecmp_config["data_type"] is None:
                 data_type = self.detect_data_type_from_protocols(protocols)
                 tecmp_config["data_type"] = data_type
@@ -415,7 +760,7 @@ class TECMPPacketBuilder:
         return self
     
     def detect_data_type_from_protocols(self, protocols: List) -> int:
-        data_type = DataType.ETHERNET_II  # Default to ETHERNET_II instead of hardcoded 0x80
+        data_type = DataType.ETHERNET_II
         
         if not protocols:
             return data_type
@@ -451,36 +796,29 @@ class TECMPPacketBuilder:
         self._protocol_cache[cache_key] = data_type
         return data_type
 
-    # Automotive specific methods - FIXED
+    # Automotive specific methods
     def with_automotive_can(self, can_id: int, data: bytes, **kwargs) -> "TECMPPacketBuilder":
-        """
-        Build CAN packet with proper RTR validation
-        
-        Args:
-            can_id: CAN identifier
-            data: CAN data payload
-            **kwargs: Additional flags (ide, rtr, tx, etc.)
-        """
+        """Build CAN packet with proper RTR validation"""
         self.with_automotive_mode(True)
         self.with_data_type(DataType.CAN)
         self.with_device_id(0x0040)  # CAN Combo
         self.with_interface_id(0x00001000)
         
-        # FIXED: RTR validation - RTR frames should have empty data
+        # RTR validation - RTR frames should have empty data
         rtr = kwargs.get('rtr', False)
         if rtr and len(data) > 0:
             self.logger.warning("RTR frame cannot have data - clearing data field")
-            data = b''  # Clear data for RTR frames
+            data = b''
         
-        # Build CAN payload - keep essential flags
+        # Build CAN payload
         payload, data_flags = self._data_builder.build_payload(
             data_type=DataType.CAN,
             can_id=can_id,
             data=data,
-            dlc=kwargs.get('dlc', len(data)),  # DLC is required
-            ide=kwargs.get('ide', False),      # Extended ID
-            rtr=rtr,                           # Remote Request
-            tx=kwargs.get('tx', False)         # Transmitted frame
+            dlc=kwargs.get('dlc', len(data)),
+            ide=kwargs.get('ide', False),
+            rtr=rtr,
+            tx=kwargs.get('tx', False)
         )
         self.with_payload(payload)
         self.with_data_flags(data_flags)
@@ -492,17 +830,15 @@ class TECMPPacketBuilder:
         self.with_device_id(0x0070)  # FlexRay High
         self.with_interface_id(0x00003000)
         
-        # FlexRay basic parameters only - flags via kwargs if handler supports them
         try:
             payload, data_flags = self._data_builder.build_payload(
                 data_type=DataType.FLEXRAY,
                 cycle=cycle,
                 frame_id=frame_id,
                 data=data,
-                **kwargs  # Pass any additional parameters the handler might accept
+                **kwargs
             )
         except TypeError:
-            # Fallback: only basic parameters
             payload, data_flags = self._data_builder.build_payload(
                 data_type=DataType.FLEXRAY,
                 cycle=cycle,
@@ -519,17 +855,15 @@ class TECMPPacketBuilder:
         self.with_device_id(0x0030)  # LIN Combo
         self.with_interface_id(0x00002000)
         
-        # LIN with common flags
         try:
             payload, data_flags = self._data_builder.build_payload(
                 data_type=DataType.LIN,
                 lin_id=lin_id,
                 data=data,
-                tx=kwargs.get('tx', False),  # Transmitted frame
-                **kwargs  # Other flags if supported
+                tx=kwargs.get('tx', False),
+                **kwargs
             )
         except TypeError:
-            # Fallback: only basic parameters
             payload, data_flags = self._data_builder.build_payload(
                 data_type=DataType.LIN,
                 lin_id=lin_id,
@@ -565,6 +899,7 @@ class TECMPPacketBuilder:
         self.with_tecmp_config(template_config)
         return self
 
+    # Flag methods
     def set_eos_flag(self, enable: bool = True) -> "TECMPPacketBuilder":
         if enable:
             self._config.device_flags |= self.FLAG_EOS
@@ -632,6 +967,8 @@ class TECMPPacketBuilder:
         self._config.device_id = self.DEVICE_ID_CM1000_HIGH1
         return self
 
+    # === BUILD METHODS ===
+    
     def build(self) -> Union[TECMPPacket, Any]:
         start_time = time.time()
         
@@ -640,7 +977,7 @@ class TECMPPacketBuilder:
             if self._config.timestamp is None:
                 self._config.timestamp = self._current_nanoseconds()
             
-            # FIXED: Auto-calculate length from payload if not set
+            # Auto-calculate length from payload if not set
             if self._config.length is None and self._config.payload is not None:
                 self._config.length = len(self._config.payload)
             elif self._config.length is None:
@@ -798,7 +1135,7 @@ class TECMPPacketBuilder:
             raise TECMPBuilderError(f"Error building complete packet: {str(e)}") from e
     
     def _build_segmented(self) -> List[TECMPPacket]:
-        """FIXED: Build segmented packets with proper validation handling"""
+        """Build segmented packets with proper validation handling"""
         try:
             payload = self._config.payload or b""
             segment_size = self._qos_settings["max_segment_size"]
@@ -821,7 +1158,7 @@ class TECMPPacketBuilder:
                 if i == total_segments - 1:
                     device_flags |= self.FLAG_EOS
                 
-                # ADDED: For multi-segment packets, set multi-frame flag
+                # For multi-segment packets, set multi-frame flag
                 if total_segments > 1:
                     device_flags |= self.FLAG_MULTI_FRAME
                 
@@ -845,7 +1182,7 @@ class TECMPPacketBuilder:
                 if self._config.auto_inject_features:
                     self._apply_feature_injection(segment_pkt)
                 
-                # FIXED: Only validate if segment validation is enabled
+                # Only validate if segment validation is enabled
                 if self._qos_settings["validate"] and self._qos_settings["validate_segments"]:
                     try:
                         segment_pkt.validate()
@@ -862,7 +1199,7 @@ class TECMPPacketBuilder:
             raise TECMPBuilderError(f"Error building segmented TECMP packets: {str(e)}") from e
     
     def segmented(self) -> Iterator[TECMPPacket]:
-        """FIXED: Generate segmented packets with proper validation handling"""
+        """Generate segmented packets with proper validation handling"""
         try:
             payload = self._config.payload or b""
             segment_size = self._qos_settings["max_segment_size"]
@@ -884,7 +1221,7 @@ class TECMPPacketBuilder:
                 if i == total_segments - 1:
                     device_flags |= self.FLAG_EOS
                 
-                # ADDED: For multi-segment packets, set multi-frame flag
+                # For multi-segment packets, set multi-frame flag
                 if total_segments > 1:
                     device_flags |= self.FLAG_MULTI_FRAME
                 
@@ -907,7 +1244,7 @@ class TECMPPacketBuilder:
                 if self._config.auto_inject_features:
                     self._apply_feature_injection(segment_pkt)
                 
-                # FIXED: Only validate if segment validation is enabled
+                # Only validate if segment validation is enabled
                 if self._qos_settings["validate"] and self._qos_settings["validate_segments"]:
                     try:
                         segment_pkt.validate()
@@ -921,17 +1258,67 @@ class TECMPPacketBuilder:
         except Exception as e:
             raise TECMPBuilderError(f"Error generating TECMP segments: {str(e)}") from e
 
+    # === GETTERS AND UTILITIES ===
+    
     def get_segments(self) -> List[TECMPPacket]:
         return self._segments
     
     def get_final_packet(self):
         return self._final_packet
+    
+    def build_ethernet_json(self) -> Dict[str, Any]:
+        """Generates complete Ethernet JSON structure like Wireshark"""
+        return {
+            "eth": {
+                "eth.dst": self._config.dst_mac,
+                "eth.dst_tree": {
+                    "eth.dst_resolved": self._config.eth_dst_resolved,
+                    "eth.dst.oui": self._config.eth_dst_oui,
+                    "eth.dst.oui_resolved": self._config.eth_dst_oui_resolved,
+                    "eth.dst.lg": self._config.eth_dst_lg,
+                    "eth.dst.ig": self._config.eth_dst_ig,
+                    "eth.addr": self._config.dst_mac,
+                    "eth.addr_resolved": self._config.eth_dst_resolved,
+                    "eth.addr.oui": self._config.eth_dst_oui,
+                    "eth.addr.oui_resolved": self._config.eth_dst_oui_resolved,
+                    "eth.lg": self._config.eth_dst_lg,
+                    "eth.ig": self._config.eth_dst_ig
+                },
+                "eth.src": self._config.src_mac,
+                "eth.src_tree": {
+                    "eth.src_resolved": self._config.eth_src_resolved,
+                    "eth.src.oui": self._config.eth_src_oui,
+                    "eth.src.oui_resolved": self._config.eth_src_oui_resolved,
+                    "eth.src.lg": self._config.eth_src_lg,
+                    "eth.src.ig": self._config.eth_src_ig,
+                    "eth.addr": self._config.src_mac,
+                    "eth.addr_resolved": self._config.eth_src_resolved,
+                    "eth.addr.oui": self._config.eth_src_oui,
+                    "eth.addr.oui_resolved": self._config.eth_src_oui_resolved,
+                    "eth.lg": self._config.eth_src_lg,
+                    "eth.ig": self._config.eth_src_ig
+                },
+                "eth.type": self._config.eth_type,
+                "eth.stream": self._config.eth_stream
+            }
+        }
+    
+    def get_ethernet_config(self) -> EthernetConfig:
+        """Returns complete Ethernet configuration"""
+        return self._ethernet_config
+    
+    def build_ethernet_json(self) -> Dict[str, Any]:
+        """Builds complete Ethernet JSON structure like Wireshark"""
+        # Update addr fields
+        self._ethernet_config.__post_init__()
+        return self._ethernet_config.to_json_structure()
         
     def get_build_stats(self) -> Dict[str, Any]:
         return {
             "build_time": self._last_build_time,
             "last_error": self._last_error,
             "config": self._config.to_dict(),
+            "ethernet_config": self.build_ethernet_json(),
             "professional_features": self._config.enable_professional,
             "coherence_enabled": self._config.enable_coherence,
             "automotive_mode": self._config.automotive_mode,
@@ -945,7 +1332,8 @@ class TECMPPacketBuilder:
                 'professional_enabled': self._config.enable_professional,
                 'coherence_enabled': self._config.enable_coherence,
                 'automotive_mode': self._config.automotive_mode,
-                'auto_injection': self._config.auto_inject_features
+                'auto_injection': self._config.auto_inject_features,
+                'ethernet_auto_resolve': self._auto_resolve_ethernet
             },
             'engines': {
                 'coherence_available': self._coherence_engine is not None,
@@ -954,6 +1342,10 @@ class TECMPPacketBuilder:
             'cache': {
                 'protocol_entries': len(self._protocol_cache),
                 'template_entries': len(self._template_cache)
+            },
+            'ethernet': {
+                'oui_database_entries': len(self.OUI_DATABASE),
+                'current_config': self.build_ethernet_json()
             }
         }
         
@@ -962,8 +1354,11 @@ class TECMPPacketBuilder:
         
         return status
 
+    # === STATIC METHODS AND PRESETS ===
+
     @staticmethod
     def from_wireshark_sample() -> "TECMPPacketBuilder":
+        """Creates builder with original Wireshark TECMP + complete Ethernet sample"""
         builder = TECMPPacketBuilder()
         return (builder
                 .with_device_id(0x0091)
@@ -977,8 +1372,17 @@ class TECMPPacketBuilder:
                 .with_timestamp_sync_status(1)
                 .with_length(74)
                 .with_data_flags(0x0000)
-                .with_source_mac("38:2a:19:80:41:cb")
-                .with_destination_mac("01:00:5e:00:00:00"))
+                .with_eth_dst_mac("01:00:5e:00:00:00")
+                .with_eth_src_mac("38:2a:19:80:24:66")
+                .with_eth_type("0x99fe")
+                .with_eth_stream("0"))
+    
+    @staticmethod
+    def from_wireshark_json(json_data: Dict[str, Any]) -> "TECMPPacketBuilder":
+        """Creates builder from complete Wireshark JSON"""
+        builder = TECMPPacketBuilder()
+        builder.from_eth_json_structure(json_data)
+        return builder
     
     @staticmethod
     def professional_builder(device_id: int = 0x0040) -> "TECMPPacketBuilder":
@@ -1015,18 +1419,68 @@ class TECMPPacketBuilder:
         return builder
 
 # =============================================================================
+# USAGE EXAMPLES
+# =============================================================================
+
+if __name__ == "__main__":
+    # Example 1: Exact reconstruction of Wireshark JSON
+    json_sample = {
+        "eth": {
+            "eth.dst": "01:00:5e:00:00:00",
+            "eth.dst_tree": {
+                "eth.dst_resolved": "IPv4mcast_00",
+                "eth.dst.oui": "65630",
+                "eth.dst.oui_resolved": "ICANN, IANA Department",
+                "eth.dst.lg": "0",
+                "eth.dst.ig": "1"
+            },
+            "eth.src": "38:2a:19:80:24:66",
+            "eth.src_tree": {
+                "eth.src_resolved": "TechnicaEngi_80:24:66",
+                "eth.src.oui": "3680793",
+                "eth.src.oui_resolved": "Technica Engineering GmbH",
+                "eth.src.lg": "0",
+                "eth.src.ig": "0"
+            },
+            "eth.type": "0x99fe",
+            "eth.stream": "0"
+        }
+    }
+    
+    # Creation from JSON
+    builder = TECMPPacketBuilder.from_wireshark_json(json_sample)
+    
+    # Generate identical JSON
+    json_output = builder.build_ethernet_json()
+    print("Generated Ethernet JSON Structure:")
+    import json
+    print(json.dumps(json_output, indent=2))
+    
+    # Example 2: Complete builder with automotive
+    automotive_builder = (TECMPPacketBuilder.automotive_builder()
+                         .with_automotive_can(0x123, b'\x01\x02\x03\x04', tx=True)
+                         .with_eth_dst_mac("01:00:5e:00:00:01")
+                         .with_eth_src_mac("38:2a:19:80:25:67"))
+    
+    # Build TECMP packet
+    packet = automotive_builder.build()
+    
+    # Get complete stats
+    stats = automotive_builder.get_build_stats()
+    print(f"\nBuild Stats: {stats}")
+
+# =============================================================================
 # ONE-LINE API
 # =============================================================================
 
 __all__ = [
     # Main classes
     'TECMPPacketBuilder',
-    'TECMPBuilderError',
+    'TECMPBuilderError', 
     'TECMPValidationError',
     'TECMPConfig',
-    
-    # ONE-LINE API
-    # 'Builder' - moved to builder_api.py                       
+    'EthernetConfig'
 ]
+
 # Alias for backward compatibility
 Builder = TECMPPacketBuilder

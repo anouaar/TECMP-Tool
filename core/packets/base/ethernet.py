@@ -8,8 +8,8 @@ Provides complete Ethernet frame handling with all fields.
 import struct
 import binascii
 from typing import Optional, Dict, Any, Union, List
-from core.packets.base.packet import (
-    Packet,
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import (
     PacketParsingError,
     PacketSerializationError,
     PacketValidationError,

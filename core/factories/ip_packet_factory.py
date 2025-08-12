@@ -12,7 +12,8 @@ from typing import Optional, Dict, Any, List, Union, Tuple
 # Import IP packets from the network module
 from core.packets.network.ipv4 import IPv4Packet
 from core.packets.network.ipv6 import IPv6Packet
-from core.packets.base.packet import Packet, PacketError
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import PacketError
 
 
 class IPPacketFactory:

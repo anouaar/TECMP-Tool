@@ -36,7 +36,8 @@ from core.packets.transport.tcp import TCPPacket
 from core.packets.transport.udp import UDPPacket
 from core.packets.network.arp import ARPPacket
 from core.packets.network.vlan import VLANPacket
-from core.packets.base.packet import Packet, PacketError
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import PacketError
 
 
 class ScapyAdapter:

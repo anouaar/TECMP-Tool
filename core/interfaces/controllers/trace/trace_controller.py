@@ -4,13 +4,8 @@
 TraceController - Enhanced version with continuous flow for TECMP-Tool
 =====================================================================
 
-Controller for traces with support for:
-- Continuous and parallel data flow
-- Multiple stream management (CAN, Ethernet, FlexRay, etc.)
-- High-performance circular buffer
-- Backpressure and flow control
-- Real-time metrics
-- Compatible with existing architecture
+COMPLETE FIXED VERSION - Resolves all stream type enum issues
+Comprehensive protection against 'int' object has no attribute 'value' errors
 """
 
 import os
@@ -63,6 +58,50 @@ class StreamType(Enum):
     ANALOG = "analog"
     UNKNOWN = "unknown"
 
+# === UTILITY FUNCTIONS FOR TYPE SAFETY ===
+
+def ensure_stream_type(value) -> StreamType:
+    """Ensure any value is converted to StreamType enum safely"""
+    if isinstance(value, StreamType):
+        return value
+    
+    if isinstance(value, str):
+        try:
+            return StreamType(value)
+        except ValueError:
+            return StreamType.UNKNOWN
+    
+    if isinstance(value, int):
+        # Convert int to StreamType based on common mappings
+        int_to_stream = {
+            0: StreamType.UNKNOWN,
+            1: StreamType.ETHERNET, 
+            2: StreamType.CAN,
+            3: StreamType.TECMP,
+            4: StreamType.FLEXRAY,
+            5: StreamType.LIN,
+            6: StreamType.UART,
+            7: StreamType.ANALOG
+        }
+        return int_to_stream.get(value, StreamType.UNKNOWN)
+    
+    return StreamType.UNKNOWN
+
+def get_stream_value(stream_type) -> str:
+    """Safely get the value from a StreamType, handling all types"""
+    if isinstance(stream_type, StreamType):
+        return stream_type.value
+    elif isinstance(stream_type, str):
+        return stream_type
+    elif isinstance(stream_type, int):
+        int_to_name = {
+            0: "unknown", 1: "ethernet", 2: "can", 3: "tecmp", 
+            4: "flexray", 5: "lin", 6: "uart", 7: "analog"
+        }
+        return int_to_name.get(stream_type, "unknown")
+    else:
+        return "unknown"
+
 @dataclass
 class StreamMetrics:
     """Metrics per stream"""
@@ -83,6 +122,10 @@ class PacketInfo:
     size: int
     data: bytes
     metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Ensure stream_type is always StreamType enum"""
+        self.stream_type = ensure_stream_type(self.stream_type)
 
 # === CONTINUOUS FLOW COMPONENTS ===
 
@@ -101,6 +144,9 @@ class PacketRingBuffer:
         
     def write(self, packet: PacketInfo, timeout: Optional[float] = None) -> bool:
         """Write a packet to the buffer"""
+        # Ensure packet has valid stream_type
+        packet.stream_type = ensure_stream_type(packet.stream_type)
+        
         with self.not_full:
             while self.count >= self.size:
                 if timeout is None:
@@ -124,6 +170,9 @@ class PacketRingBuffer:
                     return None
             
             packet = self.buffer[self.read_pos]
+            # Ensure stream_type is valid when reading
+            if packet:
+                packet.stream_type = ensure_stream_type(packet.stream_type)
             self.read_pos = (self.read_pos + 1) % self.size
             self.count -= 1
             self.not_full.notify()
@@ -136,7 +185,10 @@ class PacketRingBuffer:
             actual_count = min(max_count, self.count)
             for _ in range(actual_count):
                 packet = self.buffer[self.read_pos]
-                packets.append(packet)
+                if packet:
+                    # Ensure stream_type is valid
+                    packet.stream_type = ensure_stream_type(packet.stream_type)
+                    packets.append(packet)
                 self.read_pos = (self.read_pos + 1) % self.size
                 self.count -= 1
             
@@ -158,6 +210,7 @@ class StreamManager:
         self.metrics: Dict[StreamType, StreamMetrics] = {}
         self.processors: Dict[StreamType, Callable] = {}
         self.lock = threading.RLock()
+        self.logger = logging.getLogger("TECMP-Tool.StreamManager")
         
         # Initialize main streams
         for stream_type in StreamType:
@@ -167,24 +220,32 @@ class StreamManager:
     
     def route_packet(self, packet: PacketInfo) -> bool:
         """Route a packet to the correct stream"""
-        stream_type = packet.stream_type
-        
-        if stream_type in self.streams:
-            success = self.streams[stream_type].write(packet, timeout=0.1)
+        try:
+            # Ensure stream_type is always a StreamType enum
+            packet.stream_type = ensure_stream_type(packet.stream_type)
+            stream_type = packet.stream_type
             
-            if success:
-                with self.lock:
-                    metrics = self.metrics[stream_type]
-                    metrics.packets_count += 1
-                    metrics.bytes_count += packet.size
-                    metrics.last_packet_time = packet.timestamp
+            if stream_type in self.streams:
+                success = self.streams[stream_type].write(packet, timeout=0.1)
+                
+                if success:
+                    with self.lock:
+                        metrics = self.metrics[stream_type]
+                        metrics.packets_count += 1
+                        metrics.bytes_count += packet.size
+                        metrics.last_packet_time = packet.timestamp
+                
+                return success
             
-            return success
-        
-        return False
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error routing packet: {e}")
+            return False
     
     def get_stream(self, stream_type: StreamType) -> Optional[PacketRingBuffer]:
         """Get a specific stream"""
+        stream_type = ensure_stream_type(stream_type)
         return self.streams.get(stream_type)
     
     def get_all_metrics(self) -> Dict[StreamType, StreamMetrics]:
@@ -247,43 +308,60 @@ class ParallelTraceOrganizer:
         self.groups: Dict[str, List[PacketInfo]] = defaultdict(list)
         self.correlations: Dict[str, List[str]] = defaultdict(list)
         self.lock = threading.RLock()
+        self.logger = logging.getLogger("TECMP-Tool.TraceOrganizer")
         
     def add_packet(self, packet: PacketInfo):
         """Add a packet to the organization"""
-        with self.lock:
-            # Chronological timeline
-            self.timeline.append((packet.timestamp, packet))
+        try:
+            # Ensure stream_type is valid
+            packet.stream_type = ensure_stream_type(packet.stream_type)
             
-            # Group by criteria
-            self._group_packet(packet)
-            
-            # Detect correlations
-            self._detect_correlations(packet)
+            with self.lock:
+                # Chronological timeline
+                self.timeline.append((packet.timestamp, packet))
+                
+                # Group by criteria
+                self._group_packet(packet)
+                
+                # Detect correlations
+                self._detect_correlations(packet)
+                
+        except Exception as e:
+            self.logger.error(f"Error adding packet to organizer: {e}")
     
     def _group_packet(self, packet: PacketInfo):
         """Group packets by different criteria"""
-        # By stream type
-        self.groups[f"stream_{packet.stream_type.value}"].append(packet)
-        
-        # By time window (1 second window)
-        time_window = int(packet.timestamp)
-        self.groups[f"time_{time_window}"].append(packet)
-        
-        # By size
-        size_category = "small" if packet.size < 64 else "medium" if packet.size < 1500 else "large"
-        self.groups[f"size_{size_category}"].append(packet)
+        try:
+            # Safe stream value extraction
+            stream_value = get_stream_value(packet.stream_type)
+            self.groups[f"stream_{stream_value}"].append(packet)
+            
+            # By time window (1 second window)
+            time_window = int(packet.timestamp)
+            self.groups[f"time_{time_window}"].append(packet)
+            
+            # By size
+            size_category = "small" if packet.size < 64 else "medium" if packet.size < 1500 else "large"
+            self.groups[f"size_{size_category}"].append(packet)
+            
+        except Exception as e:
+            self.logger.error(f"Error grouping packet: {e}")
     
     def _detect_correlations(self, packet: PacketInfo):
         """Detect correlations between packets"""
-        # Simple example: packets close in time
-        recent_packets = [p for t, p in self.timeline[-10:] 
-                         if abs(t - packet.timestamp) < 0.001]
-        
-        for recent in recent_packets:
-            if recent.stream_type != packet.stream_type:
-                correlation_id = f"{packet.timestamp:.6f}"
-                self.correlations[correlation_id].append(str(packet))
-                self.correlations[correlation_id].append(str(recent))
+        try:
+            # Simple example: packets close in time
+            recent_packets = [p for t, p in self.timeline[-10:] 
+                             if abs(t - packet.timestamp) < 0.001]
+            
+            for recent in recent_packets:
+                if recent.stream_type != packet.stream_type:
+                    correlation_id = f"{packet.timestamp:.6f}"
+                    self.correlations[correlation_id].append(str(packet))
+                    self.correlations[correlation_id].append(str(recent))
+                    
+        except Exception as e:
+            self.logger.error(f"Error detecting correlations: {e}")
 
 # === ENHANCED TRACE CONTROLLER ===
 
@@ -348,7 +426,8 @@ class TraceController(QObject if QT_AVAILABLE else object):
             'bytes_per_second': 0.0,
             'buffer_usage': 0.0,
             'active_streams': 0,
-            'errors': 0
+            'errors': 0,
+            'start_time': time.time()
         }
         
         # Timer for periodic updates (fixed for Qt issues)
@@ -561,7 +640,8 @@ class TraceController(QObject if QT_AVAILABLE else object):
                 'bytes_per_second': 0.0,
                 'buffer_usage': 0.0,
                 'active_streams': 0,
-                'errors': 0
+                'errors': 0,
+                'start_time': time.time()
             }
             
             self.flow_state = FlowState.RUNNING
@@ -622,10 +702,12 @@ class TraceController(QObject if QT_AVAILABLE else object):
                     if self._stop_flow.is_set():
                         return True  # Stop sniff
                     
-                    # Create PacketInfo
+                    # Create PacketInfo - Ensure StreamType enum
+                    stream_type = self._detect_stream_type_from_scapy(pkt)
+                    
                     packet_info = PacketInfo(
                         timestamp=time.time(),
-                        stream_type=self._detect_stream_type_from_scapy(pkt),
+                        stream_type=stream_type,
                         size=len(bytes(pkt)),
                         data=bytes(pkt),
                         metadata={'interface': interface}
@@ -685,28 +767,52 @@ class TraceController(QObject if QT_AVAILABLE else object):
         
         while not self._stop_flow.is_set():
             try:
-                # Read batch of packets
-                packets = self.main_buffer.read_batch(100)
+                # Read batch of packets with error handling
+                try:
+                    packets = self.main_buffer.read_batch(100)
+                except Exception as e:
+                    self.logger.error(f"Error reading from buffer: {e}")
+                    time.sleep(0.1)
+                    continue
                 
                 if not packets:
                     time.sleep(0.01)
                     continue
                 
-                # Distribute to appropriate streams
-                for packet in packets:
-                    # Route to correct stream
-                    self.stream_manager.route_packet(packet)
+                # Process each packet individually with error isolation
+                for i, packet in enumerate(packets):
+                    try:
+                        # Ensure packet and stream_type are valid
+                        if not packet:
+                            continue
+                            
+                        packet.stream_type = ensure_stream_type(packet.stream_type)
+                        
+                        # Route to correct stream
+                        try:
+                            self.stream_manager.route_packet(packet)
+                        except Exception as e:
+                            self.logger.error(f"Error routing packet {i}: {e}")
+                        
+                        # Organize for parallel analysis
+                        try:
+                            self.trace_organizer.add_packet(packet)
+                        except Exception as e:
+                            self.logger.error(f"Error organizing packet {i}: {e}")
+                        
+                        # Update global metrics
+                        with self._flow_lock:
+                            self.real_time_metrics['total_packets'] += 1
+                            self.real_time_metrics['total_bytes'] += packet.size
                     
-                    # Organize for parallel analysis
-                    self.trace_organizer.add_packet(packet)
-                    
-                    # Update global metrics
-                    with self._flow_lock:
-                        self.real_time_metrics['total_packets'] += 1
-                        self.real_time_metrics['total_bytes'] += packet.size
+                    except Exception as e:
+                        self.logger.error(f"Error processing individual packet {i}: {e}")
+                        continue
                 
             except Exception as e:
                 self.logger.error(f"Distribution worker error: {e}")
+                import traceback
+                self.logger.error(f"Full traceback: {traceback.format_exc()}")
                 self.real_time_metrics['errors'] += 1
                 time.sleep(0.1)
         
@@ -714,11 +820,14 @@ class TraceController(QObject if QT_AVAILABLE else object):
     
     def _stream_processing_worker(self, stream_type: StreamType):
         """Processing worker for specific stream type"""
-        self.logger.info(f"Stream processing worker started for {stream_type.value}")
+        stream_type = ensure_stream_type(stream_type)
+        stream_value = get_stream_value(stream_type)
+        
+        self.logger.info(f"Stream processing worker started for {stream_value}")
         
         stream_buffer = self.stream_manager.get_stream(stream_type)
         if not stream_buffer:
-            self.logger.error(f"No buffer for stream {stream_type}")
+            self.logger.error(f"No buffer for stream {stream_value}")
             return
         
         while not self._stop_flow.is_set():
@@ -732,34 +841,38 @@ class TraceController(QObject if QT_AVAILABLE else object):
                 
                 # Process packets
                 for packet in packets:
-                    self._process_packet(packet)
-                    
-                    # Emit signal if Qt available
-                    if QT_AVAILABLE and hasattr(self, 'stream_packet_received'):
-                        packet_dict = {
-                            'timestamp': packet.timestamp,
-                            'size': packet.size,
-                            'metadata': packet.metadata
-                        }
-                        self.stream_packet_received.emit(
-                            stream_type.value, packet_dict
-                        )
+                    try:
+                        self._process_packet(packet)
+                        
+                        # Emit signal if Qt available
+                        if QT_AVAILABLE and hasattr(self, 'stream_packet_received'):
+                            packet_dict = {
+                                'timestamp': packet.timestamp,
+                                'size': packet.size,
+                                'metadata': packet.metadata
+                            }
+                            self.stream_packet_received.emit(stream_value, packet_dict)
+                    except Exception as e:
+                        self.logger.error(f"Error processing stream packet: {e}")
                 
             except Exception as e:
-                self.logger.error(f"Stream worker error ({stream_type}): {e}")
+                self.logger.error(f"Stream worker error ({stream_value}): {e}")
                 time.sleep(0.1)
         
-        self.logger.info(f"Stream processing worker stopped for {stream_type.value}")
+        self.logger.info(f"Stream processing worker stopped for {stream_value}")
     
     def _process_packet(self, packet: PacketInfo):
         """Process individual packet"""
         try:
+            # Ensure valid stream type
+            packet.stream_type = ensure_stream_type(packet.stream_type)
+            
             # Store in packet_manager if available
             if self.packet_manager:
                 # Convert PacketInfo to expected format
                 packet_data = {
                     'timestamp': packet.timestamp,
-                    'stream_type': packet.stream_type.value,
+                    'stream_type': get_stream_value(packet.stream_type),
                     'size': packet.size,
                     'data': packet.data,
                     'metadata': packet.metadata
@@ -880,10 +993,13 @@ class TraceController(QObject if QT_AVAILABLE else object):
                         if self._stop_flow.is_set():
                             break
                         
+                        # Detect stream type and ensure it's valid
+                        stream_type = self._detect_stream_type_from_data(buf)
+                        
                         # Create PacketInfo
                         packet_info = PacketInfo(
                             timestamp=float(timestamp),
-                            stream_type=self._detect_stream_type_from_data(buf),
+                            stream_type=stream_type,
                             size=len(buf),
                             data=buf,
                             metadata={'source': str(file_path)}
@@ -955,22 +1071,26 @@ class TraceController(QObject if QT_AVAILABLE else object):
         if len(data) < 14:
             return StreamType.UNKNOWN
         
-        # Check EtherType
-        ethertype = struct.unpack('!H', data[12:14])[0]
-        
-        if ethertype == 0x88EC:  # TECMP
-            return StreamType.TECMP
-        elif ethertype == 0x0800:  # IPv4
+        try:
+            # Check EtherType
+            ethertype = struct.unpack('!H', data[12:14])[0]
+            
+            if ethertype == 0x88EC:  # TECMP
+                return StreamType.TECMP
+            elif ethertype == 0x0800:  # IPv4
+                return StreamType.ETHERNET
+            elif ethertype == 0x86DD:  # IPv6
+                return StreamType.ETHERNET
+            
+            # Check specific patterns
+            if len(data) >= 16:
+                if data[14:16] == b'\x00\x00':  # Possible CAN
+                    return StreamType.CAN
+            
             return StreamType.ETHERNET
-        elif ethertype == 0x86DD:  # IPv6
-            return StreamType.ETHERNET
-        
-        # Check specific patterns
-        if len(data) >= 16:
-            if data[14:16] == b'\x00\x00':  # Possible CAN
-                return StreamType.CAN
-        
-        return StreamType.ETHERNET
+            
+        except:
+            return StreamType.UNKNOWN
     
     def _get_random_stream_type(self) -> StreamType:
         """Return random stream type for simulation"""
@@ -984,6 +1104,9 @@ class TraceController(QObject if QT_AVAILABLE else object):
                                   interface: str) -> PacketInfo:
         """Generate simulated packet for tests"""
         import random
+        
+        # Ensure stream_type is valid
+        stream_type = ensure_stream_type(stream_type)
         
         # Size by type
         if stream_type == StreamType.CAN:
@@ -1021,21 +1144,27 @@ class TraceController(QObject if QT_AVAILABLE else object):
                 'flow_state': self.flow_state.name
             }
             
-            # Metrics per stream
+            # Metrics per stream - PROTECTED .value access
             for stream_type, stream_metrics in self.stream_manager.get_all_metrics().items():
-                metrics['streams'][stream_type.value] = {
-                    'packets': stream_metrics.packets_count,
-                    'bytes': stream_metrics.bytes_count,
-                    'errors': stream_metrics.errors_count,
-                    'pps': stream_metrics.packets_per_second
-                }
-                
-                # Stream buffer usage
-                stream_buffer = self.stream_manager.get_stream(stream_type)
-                if stream_buffer:
-                    metrics['buffer_usage'][stream_type.value] = (
-                        stream_buffer.get_usage() * 100
-                    )
+                try:
+                    # Safe stream value extraction
+                    stream_key = get_stream_value(stream_type)
+                    
+                    metrics['streams'][stream_key] = {
+                        'packets': stream_metrics.packets_count,
+                        'bytes': stream_metrics.bytes_count,
+                        'errors': stream_metrics.errors_count,
+                        'pps': stream_metrics.packets_per_second
+                    }
+                    
+                    # Stream buffer usage
+                    stream_buffer = self.stream_manager.get_stream(stream_type)
+                    if stream_buffer:
+                        metrics['buffer_usage'][stream_key] = (
+                            stream_buffer.get_usage() * 100
+                        )
+                except Exception as e:
+                    self.logger.error(f"Error processing stream metrics for {stream_type}: {e}")
             
             # Emit signal
             if QT_AVAILABLE and hasattr(self, 'metrics_updated'):
@@ -1043,14 +1172,14 @@ class TraceController(QObject if QT_AVAILABLE else object):
             
         except Exception as e:
             self.logger.error(f"Error updating metrics: {e}")
+            import traceback
+            self.logger.error(f"Metrics update traceback: {traceback.format_exc()}")
     
     def _finalize_metrics(self):
         """Finalize metrics at end of capture"""
         with self._flow_lock:
             # Calculate final statistics
-            total_duration = time.time() - (
-                self.real_time_metrics.get('start_time', time.time())
-            )
+            total_duration = time.time() - self.real_time_metrics.get('start_time', time.time())
             
             if total_duration > 0:
                 avg_pps = self.real_time_metrics['total_packets'] / total_duration
@@ -1080,10 +1209,24 @@ class TraceController(QObject if QT_AVAILABLE else object):
     
     def get_flow_statistics(self) -> Dict[str, Any]:
         """Return complete flow statistics"""
+        # PROTECTED .value access in streams dictionary comprehension
+        try:
+            streams_dict = {}
+            for st, metrics in self.stream_manager.get_all_metrics().items():
+                try:
+                    key = get_stream_value(st)
+                    streams_dict[key] = metrics
+                except Exception as e:
+                    self.logger.error(f"Error processing stream {st} in flow statistics: {e}")
+                    streams_dict[str(st)] = metrics
+        except Exception as e:
+            self.logger.error(f"Error building streams dict: {e}")
+            streams_dict = {}
+        
         return {
             'state': self.flow_state.name,
             'metrics': dict(self.real_time_metrics),
-            'streams': self.stream_manager.get_all_metrics(),
+            'streams': streams_dict,
             'buffer_usage': self.main_buffer.get_usage(),
             'backpressure_level': self.backpressure_manager.current_level,
             'timeline_size': len(self.trace_organizer.timeline),
@@ -1093,6 +1236,7 @@ class TraceController(QObject if QT_AVAILABLE else object):
     def get_stream_packets(self, stream_type: StreamType, 
                           max_count: int = 100) -> List[PacketInfo]:
         """Get last packets from specific stream"""
+        stream_type = ensure_stream_type(stream_type)
         stream_buffer = self.stream_manager.get_stream(stream_type)
         if stream_buffer:
             return stream_buffer.read_batch(max_count)

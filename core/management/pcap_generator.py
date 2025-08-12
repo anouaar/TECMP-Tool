@@ -116,8 +116,8 @@ class PacketUtils:
                 
             # Case 5: Packet class from our library
             try:
-                from core.packets.base.packet import BasePacket
-                if isinstance(packet, BasePacket):
+                from core.packets.base.packet import Packet
+                if isinstance(packet, Packet):
                     return packet.serialize()
             except ImportError:
                 pass

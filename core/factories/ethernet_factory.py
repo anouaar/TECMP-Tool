@@ -10,7 +10,8 @@ from typing import Optional, Dict, Any, List, Union, Tuple
 
 # Import Ethernet packet from the base module
 from core.packets.base.ethernet import EthernetPacket, MacAddress
-from core.packets.base.packet import Packet, PacketError
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import PacketError
 
 
 class EthernetPacketFactory:

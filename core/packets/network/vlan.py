@@ -7,13 +7,13 @@ Provides complete VLAN tagging support.
 
 import struct
 from typing import Optional, Dict, Any, Union
-from core.packets.base.packet import (
-    Packet,
+
+from core.packets.base.packet import Packet
+from core.exceptions.exceptions import (
     PacketParsingError,
     PacketSerializationError,
     PacketValidationError,
 )
-
 
 class VLANPacket(Packet):
     """
